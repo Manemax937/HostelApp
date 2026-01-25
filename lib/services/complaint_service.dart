@@ -54,13 +54,15 @@ class ComplaintService extends ChangeNotifier {
       // Send notifications
       final notificationService = NotificationService();
 
-      // Notify student that complaint is submitted
+      // Notify student that complaint is submitted and broadcast to residence
       await notificationService.sendComplaintSubmittedNotification(
         userId: userId,
         category: complaint.categoryName,
+        userName: userName,
+        residenceName: residenceName,
       );
 
-      // Notify owner about new complaint
+      // Notify owner about new complaint (also visible to all)
       await notificationService.sendNewComplaintNotification(
         studentName: userName,
         category: complaint.categoryName,

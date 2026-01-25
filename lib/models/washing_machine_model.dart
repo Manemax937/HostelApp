@@ -33,7 +33,9 @@ class WashingMachineSession {
       userName: map['userName'] ?? '',
       roomNo: map['roomNo'] ?? '',
       clothesCount: map['clothesCount'] ?? 0,
-      startTime: (map['startTime'] as Timestamp).toDate(),
+      startTime: map['startTime'] != null
+          ? (map['startTime'] as Timestamp).toDate()
+          : DateTime.now(),
       endTime: map['endTime'] != null
           ? (map['endTime'] as Timestamp).toDate()
           : null,

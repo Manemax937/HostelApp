@@ -256,26 +256,22 @@ class _OwnerDetailsScreenState extends State<_OwnerDetailsScreen> {
     try {
       final authService = Provider.of<AuthService>(context, listen: false);
 
-      // Generate verification code
-      final verificationCode =
-          (100000 + DateTime.now().millisecondsSinceEpoch % 900000).toString();
-
+      // Cloud Function will generate and email the verification code
       await authService.completeGoogleOwnerRegistration(
         fullName: _nameController.text.trim(),
         residenceName: _residenceController.text.trim(),
-        verificationCode: verificationCode,
       );
 
       setState(() => _registrationComplete = true);
 
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
+          const SnackBar(
             content: Text(
-              'Registration complete! Your verification code is: $verificationCode',
+              'Registration complete! A verification code has been sent to your email.',
             ),
             backgroundColor: AppTheme.successColor,
-            duration: const Duration(seconds: 10),
+            duration: Duration(seconds: 5),
           ),
         );
       }

@@ -1,6 +1,7 @@
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:flutter/foundation.dart';
 import 'package:hostelapp/models/machine_model.dart';
+import 'package:hostelapp/services/notification_service.dart';
 
 class MachineService extends ChangeNotifier {
   final FirebaseFirestore _firestore = FirebaseFirestore.instance;
@@ -59,6 +60,7 @@ class MachineService extends ChangeNotifier {
     required String userName,
     required String roomNo,
     required int clothesCount,
+    String? residenceName,
   }) async {
     // Check if machine is available
     final doc = await _firestore.collection(_collection).doc(machineId).get();
@@ -89,11 +91,29 @@ class MachineService extends ChangeNotifier {
       'sessionStartTime': Timestamp.now(),
     });
 
+    // Send notification to all residence members
+    await NotificationService().sendMachineBookingNotification(
+      machineName: machine.name,
+      slotTime: 'Now',
+      userId: userId,
+      userName: userName,
+      residenceName: residenceName ?? machine.residenceName,
+    );
+
     notifyListeners();
   }
 
   /// End a washing session (Student or Owner)
-  Future<void> endSession(String machineId) async {
+  Future<void> endSession(String machineId, {String? residenceName}) async {
+    // Get machine details first for notification
+    final doc = await _firestore.collection(_collection).doc(machineId).get();
+    final machineName = doc.exists
+        ? (doc.data()?['name'] ?? 'Machine')
+        : 'Machine';
+    final machineResidence = doc.exists
+        ? (doc.data()?['residenceName'] as String?)
+        : null;
+
     await _firestore.collection(_collection).doc(machineId).update({
       'status': 'available',
       'currentUserId': null,
@@ -102,6 +122,12 @@ class MachineService extends ChangeNotifier {
       'clothesCount': null,
       'sessionStartTime': null,
     });
+
+    // Send notification to all residence members
+    await NotificationService().sendMachineAvailableNotification(
+      machineName: machineName,
+      residenceName: residenceName ?? machineResidence,
+    );
 
     notifyListeners();
   }

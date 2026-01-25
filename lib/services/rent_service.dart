@@ -162,12 +162,23 @@ class RentService {
       'paymentId': paymentRef.id,
     });
 
-    // Send notification to owner about pending payment
-    await NotificationService().sendPaymentPendingVerificationNotification(
-      studentName: userName,
-      amount: amount,
-      residenceName: residenceName,
-    );
+    // Send notification to owner about pending payment (private - only owner sees)
+    // First, find the owner of this residence
+    final ownerQuery = await _usersCollection
+        .where('role', isEqualTo: 'owner')
+        .where('residenceName', isEqualTo: residenceName)
+        .where('isVerified', isEqualTo: true)
+        .limit(1)
+        .get();
+
+    if (ownerQuery.docs.isNotEmpty) {
+      final ownerId = ownerQuery.docs.first.id;
+      await NotificationService().sendPaymentPendingVerificationNotification(
+        studentName: userName,
+        amount: amount,
+        ownerId: ownerId,
+      );
+    }
 
     return paymentRef.id;
   }

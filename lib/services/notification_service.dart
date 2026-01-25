@@ -39,24 +39,57 @@ class NotificationService {
 
   Future<void> initialize() async {
     // Request permission
-    await _messaging.requestPermission(
+    final settings = await _messaging.requestPermission(
       alert: true,
       badge: true,
       sound: true,
       provisional: false,
+      criticalAlert: true,
     );
+
+    debugPrint(
+      'Notification permission status: ${settings.authorizationStatus}',
+    );
+
+    // Create Android notification channel (required for Android 8.0+)
+    const androidChannel = AndroidNotificationChannel(
+      'comfort_pg_channel',
+      'Comfort PG Notifications',
+      description: 'Notifications for Comfort PG residents',
+      importance: Importance.high,
+      playSound: true,
+      enableVibration: true,
+      showBadge: true,
+    );
+
+    await _localNotifications
+        .resolvePlatformSpecificImplementation<
+          AndroidFlutterLocalNotificationsPlugin
+        >()
+        ?.createNotificationChannel(androidChannel);
 
     // Initialize local notifications
     const androidSettings = AndroidInitializationSettings(
       '@mipmap/ic_launcher',
     );
-    const iosSettings = DarwinInitializationSettings();
+    const iosSettings = DarwinInitializationSettings(
+      requestAlertPermission: true,
+      requestBadgePermission: true,
+      requestSoundPermission: true,
+    );
     const initSettings = InitializationSettings(
       android: androidSettings,
       iOS: iosSettings,
     );
 
     await _localNotifications.initialize(initSettings);
+
+    // Set foreground notification presentation options for iOS
+    await _messaging.setForegroundNotificationPresentationOptions(
+      alert: true,
+      badge: true,
+      sound: true,
+    );
 
     // Handle foreground messages
     FirebaseMessaging.onMessage.listen(_handleForegroundMessage);
@@ -88,18 +121,14 @@ class NotificationService {
     // You can navigate to specific screens based on message.data
   }
 
-  /// Background message handler (must be top-level function)
-  static Future<void> _firebaseMessagingBackgroundHandler(
-    RemoteMessage message,
-  ) async {
-    debugPrint('Background message: ${message.notification?.title}');
-  }
-
   /// Save FCM token to user's document for push notifications
   Future<void> _saveUserFcmToken() async {
     try {
       final token = await _messaging.getToken();
       final userId = _currentUserId;
+
+      debugPrint('FCM Token: $token');
+      debugPrint('Current User ID: $userId');
 
       if (token != null && userId != null) {
         await _firestore.collection('users').doc(userId).update({
@@ -107,10 +136,17 @@ class NotificationService {
           'fcmTokenUpdatedAt': Timestamp.now(),
         });
         debugPrint('FCM Token saved for user: $userId');
+      } else {
+        debugPrint('Cannot save FCM token: token=$token, userId=$userId');
       }
     } catch (e) {
       debugPrint('Error saving FCM token: $e');
     }
+  }
+
+  /// Public method to refresh FCM token (call after login)
+  Future<void> refreshFcmToken() async {
+    await _saveUserFcmToken();
   }
 
   /// Subscribe user to residence topic for broadcast notifications
@@ -188,8 +224,7 @@ class NotificationService {
     required String noticeTitle,
     required String noticeContent,
   }) async {
-    // DON'T show local notification to owner who posted it
-    // Save to Firestore for residents to see in their notification list
+    // Save to Firestore - Cloud Function sends push to all students
     await _saveNotification(
       type: NotificationType.notice,
       title: '📢 New Notice',
@@ -229,18 +264,23 @@ class NotificationService {
 
   // ============ MACHINE NOTIFICATIONS ============
 
-  /// Send notification when machine booking is confirmed (self confirmation)
+  /// Send notification when machine is booked (broadcast to residence)
   Future<void> sendMachineBookingNotification({
     required String machineName,
     required String slotTime,
     required String userId,
+    String? userName,
+    String? residenceName,
   }) async {
-    // Self confirmation - show local
-    await _showLocalNotification(
-      title: '🧺 Booking Confirmed',
-      body: '$machineName booked for $slotTime',
-      payload: 'machine',
-    );
+    // Save to Firestore for all residence members to see
+    if (residenceName != null) {
+      await _saveNotification(
+        type: NotificationType.machine,
+        title: '🧺 Machine Booked',
+        body: '${userName ?? "Someone"} booked $machineName',
+        residenceName: residenceName,
+      );
+    }
   }
 
   /// Send notification when machine slot is about to start
@@ -255,15 +295,20 @@ class NotificationService {
     );
   }
 
-  /// Send notification when machine is available
+  /// Send notification when machine is available (broadcast to residence)
   Future<void> sendMachineAvailableNotification({
     required String machineName,
+    String? residenceName,
   }) async {
-    await _showLocalNotification(
-      title: '🧺 Machine Available',
-      body: '$machineName is now available for booking',
-      payload: 'machine',
-    );
+    // Broadcast to all residence members
+    if (residenceName != null) {
+      await _saveNotification(
+        type: NotificationType.machine,
+        title: '🧺 Machine Available',
+        body: '$machineName is now available for booking',
+        residenceName: residenceName,
+      );
+    }
   }
 
   // ============ FINANCE NOTIFICATIONS ============
@@ -328,32 +373,42 @@ class NotificationService {
   Future<void> sendPaymentPendingVerificationNotification({
     required String studentName,
     required double amount,
-    required String residenceName,
+    required String ownerId,
   }) async {
-    // Don't show local notification - student is submitting
-    // Save to Firestore for owner to see
+    // Send only to the specific owner, not to entire residence (private)
     await _saveNotification(
       type: NotificationType.finance,
-      title: 'Payment Pending',
+      title: '💳 Payment Pending',
       body:
           '$studentName submitted ₹${amount.toStringAsFixed(0)} for verification',
-      residenceName: residenceName,
+      userId: ownerId,
     );
   }
 
   // ============ SUPPORT NOTIFICATIONS ============
 
-  /// Send notification when complaint is submitted (confirmation to student)
+  /// Send notification when complaint is submitted (broadcast to residence)
   Future<void> sendComplaintSubmittedNotification({
     required String userId,
     required String category,
+    String? userName,
+    String? residenceName,
   }) async {
-    // Show local notification as confirmation to the student who submitted
-    if (_currentUserId == userId) {
-      await _showLocalNotification(
-        title: '📝 Complaint Submitted',
-        body: 'Your $category complaint has been submitted',
-        payload: 'support',
+    // Save to Firestore for the user
+    await _saveNotification(
+      type: NotificationType.support,
+      title: '📝 Complaint Submitted',
+      body: 'Your $category complaint has been submitted',
+      userId: userId,
+    );
+
+    // Also broadcast to residence so everyone knows
+    if (residenceName != null) {
+      await _saveNotification(
+        type: NotificationType.support,
+        title: '🔧 New $category Issue',
+        body: '${userName ?? "A resident"} reported a $category issue',
+        residenceName: residenceName,
       );
     }
   }
@@ -364,29 +419,38 @@ class NotificationService {
     required String category,
     required String residenceName,
   }) async {
-    // Don't show local notification - student is submitting
-    // Save to Firestore for owner to see
+    // Save to Firestore for owner and all residence members to see
     await _saveNotification(
       type: NotificationType.support,
-      title: 'New Complaint',
+      title: '🆘 New Complaint',
       body: '$studentName raised a $category complaint',
       residenceName: residenceName,
     );
   }
 
-  /// Send notification when complaint is resolved (notifies student)
+  /// Send notification when complaint is resolved (broadcast to residence)
   Future<void> sendComplaintResolvedNotification({
     required String userId,
     required String category,
+    String? residenceName,
   }) async {
-    // Don't show local notification - owner is resolving
-    // Save to Firestore for student to see
+    // Notify the student who raised it
     await _saveNotification(
       type: NotificationType.support,
-      title: 'Complaint Resolved',
+      title: '✅ Complaint Resolved',
       body: 'Your $category complaint has been resolved',
       userId: userId,
     );
+
+    // Also broadcast to residence
+    if (residenceName != null) {
+      await _saveNotification(
+        type: NotificationType.support,
+        title: '✅ Issue Resolved',
+        body: 'A $category issue has been resolved',
+        residenceName: residenceName,
+      );
+    }
   }
 
   // ============ VERIFICATION NOTIFICATIONS ============
@@ -448,7 +512,7 @@ class NotificationService {
     }
   }
 
-  /// Get notifications for a user
+  /// Get notifications for a user (personal notifications only)
   Stream<List<Map<String, dynamic>>> getUserNotifications(String userId) {
     if (userId.isEmpty) return Stream.value([]);
 
@@ -472,6 +536,87 @@ class NotificationService {
           });
           return list.take(50).toList();
         });
+  }
+
+  /// Get all notifications for a student (personal + residence-wide)
+  /// This combines user-specific notifications (like finance) with
+  /// residence-wide notifications (like notices, machine bookings)
+  Stream<List<Map<String, dynamic>>> getStudentNotifications({
+    required String userId,
+    required String residenceName,
+  }) {
+    if (userId.isEmpty) return Stream.value([]);
+
+    // If no residence name, just return user notifications
+    if (residenceName.isEmpty) {
+      return _firestore
+          .collection('notifications')
+          .where('userId', isEqualTo: userId)
+          .snapshots()
+          .map((snapshot) {
+            final list = snapshot.docs.map((doc) {
+              final data = doc.data();
+              data['id'] = doc.id;
+              return data;
+            }).toList();
+            list.sort((a, b) {
+              final aTime =
+                  (a['createdAt'] as Timestamp?)?.toDate() ?? DateTime.now();
+              final bTime =
+                  (b['createdAt'] as Timestamp?)?.toDate() ?? DateTime.now();
+              return bTime.compareTo(aTime);
+            });
+            return list.take(50).toList();
+          });
+    }
+
+    // Get user-specific notifications stream
+    final userStream = _firestore
+        .collection('notifications')
+        .where('userId', isEqualTo: userId)
+        .snapshots();
+
+    // Get residence-wide notifications stream (for notices, machine bookings, etc.)
+    final residenceStream = _firestore
+        .collection('notifications')
+        .where('residenceName', isEqualTo: residenceName)
+        .snapshots();
+
+    // Combine both streams - when either changes, recombine all notifications
+    return userStream.asyncExpand((userSnapshot) {
+      return residenceStream.map((residenceSnapshot) {
+        final List<Map<String, dynamic>> allNotifications = [];
+        final Set<String> addedIds = {};
+
+        // Add user-specific notifications
+        for (final doc in userSnapshot.docs) {
+          final data = doc.data();
+          data['id'] = doc.id;
+          allNotifications.add(data);
+          addedIds.add(doc.id);
+        }
+
+        // Add residence-wide notifications (avoid duplicates)
+        for (final doc in residenceSnapshot.docs) {
+          if (!addedIds.contains(doc.id)) {
+            final data = doc.data();
+            data['id'] = doc.id;
+            allNotifications.add(data);
+          }
+        }
+
+        // Sort by createdAt descending
+        allNotifications.sort((a, b) {
+          final aTime =
+              (a['createdAt'] as Timestamp?)?.toDate() ?? DateTime.now();
+          final bTime =
+              (b['createdAt'] as Timestamp?)?.toDate() ?? DateTime.now();
+          return bTime.compareTo(aTime);
+        });
+
+        return allNotifications.take(50).toList();
+      });
+    });
   }
 
   /// Get notifications for a residence (for owner)
@@ -509,7 +654,7 @@ class NotificationService {
     });
   }
 
-  /// Get unread notification count for user
+  /// Get unread notification count for user (personal notifications only)
   Stream<int> getUnreadCountForUser(String userId) {
     if (userId.isEmpty) return Stream.value(0);
 
@@ -521,6 +666,64 @@ class NotificationService {
           (snapshot) =>
               snapshot.docs.where((doc) => doc.data()['isRead'] != true).length,
         );
+  }
+
+  /// Get unread notification count for student (personal + residence-wide)
+  Stream<int> getUnreadCountForStudent({
+    required String userId,
+    required String residenceName,
+  }) {
+    if (userId.isEmpty) return Stream.value(0);
+
+    // If no residence name, just return user unread count
+    if (residenceName.isEmpty) {
+      return _firestore
+          .collection('notifications')
+          .where('userId', isEqualTo: userId)
+          .snapshots()
+          .map(
+            (snapshot) => snapshot.docs
+                .where((doc) => doc.data()['isRead'] != true)
+                .length,
+          );
+    }
+
+    // Get user-specific notifications stream
+    final userStream = _firestore
+        .collection('notifications')
+        .where('userId', isEqualTo: userId)
+        .snapshots();
+
+    // Get residence-wide notifications stream
+    final residenceStream = _firestore
+        .collection('notifications')
+        .where('residenceName', isEqualTo: residenceName)
+        .snapshots();
+
+    // Combine both streams for reactive unread count
+    return userStream.asyncExpand((userSnapshot) {
+      return residenceStream.map((residenceSnapshot) {
+        final Set<String> countedIds = {};
+        int unreadCount = 0;
+
+        // Count user-specific unread notifications
+        for (final doc in userSnapshot.docs) {
+          if (doc.data()['isRead'] != true) {
+            unreadCount++;
+          }
+          countedIds.add(doc.id);
+        }
+
+        // Count residence-wide unread notifications (avoid duplicates)
+        for (final doc in residenceSnapshot.docs) {
+          if (!countedIds.contains(doc.id) && doc.data()['isRead'] != true) {
+            unreadCount++;
+          }
+        }
+
+        return unreadCount;
+      });
+    });
   }
 
   /// Get unread notification count for residence

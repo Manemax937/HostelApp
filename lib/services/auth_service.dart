@@ -1,8 +1,11 @@
+import 'dart:convert';
+import 'package:crypto/crypto.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:flutter/foundation.dart';
 import 'package:google_sign_in/google_sign_in.dart';
 import 'package:hostelapp/models/user_model.dart';
+import 'package:hostelapp/services/notification_service.dart';
 import 'package:hostelapp/utils/app_constants.dart';
 
 class AuthService extends ChangeNotifier {
@@ -119,11 +122,8 @@ class AuthService extends ChangeNotifier {
         password: password,
       );
 
-      // Generate 6-digit verification code
-      final verificationCode =
-          (100000 + DateTime.now().millisecondsSinceEpoch % 900000).toString();
-
       // Create owner document in Firestore
+      // Note: Cloud Function will generate verification code and send email
       final userModel = UserModel(
         uid: credential.user!.uid,
         fullName: fullName,
@@ -132,7 +132,6 @@ class AuthService extends ChangeNotifier {
         residenceName: residenceName,
         createdAt: DateTime.now(),
         isActive: false,
-        verificationCode: verificationCode,
         isVerified: false,
       );
 
@@ -141,14 +140,7 @@ class AuthService extends ChangeNotifier {
           .doc(credential.user!.uid)
           .set(userModel.toMap());
 
-      // Send verification email with code
-      // Note: In production, use a cloud function to send custom email with the code
-      // For now, the code is stored in Firestore and can be retrieved by admin/email service
-      await credential.user!.sendEmailVerification();
-
       // Don't sign out - keep owner signed in to verify immediately
-      // await _auth.signOut();
-
       return credential;
     } on FirebaseAuthException catch (e) {
       throw _handleAuthException(e);
@@ -169,16 +161,46 @@ class AuthService extends ChangeNotifier {
 
     if (user.role != UserRole.owner) throw 'Only owners can verify';
 
-    if (user.verificationCode != code) {
+    // Check code expiration (24 hours)
+    final codeExpiresAt = doc.data()?['verificationCodeExpiresAt'];
+    if (codeExpiresAt != null) {
+      final expiryTime = (codeExpiresAt as Timestamp).toDate();
+      if (DateTime.now().isAfter(expiryTime)) {
+        throw 'Verification code has expired. Please request a new one.';
+      }
+    }
+
+    // Get the hashed code from database and compare
+    final storedCodeHash = doc.data()?['verificationCodeHash'] as String?;
+    if (storedCodeHash == null) {
+      throw 'No verification code found. Please register again.';
+    }
+
+    // Hash the input code and compare
+    final inputCodeHash = _hashCode(code);
+    if (storedCodeHash != inputCodeHash) {
       throw 'Invalid verification code';
     }
 
+    // Clear the verification code after successful verification
     await _firestore
         .collection(AppConstants.usersCollection)
         .doc(currentUser!.uid)
-        .update({'isVerified': true, 'isActive': true});
+        .update({
+          'isVerified': true,
+          'isActive': true,
+          'verificationCodeHash': FieldValue.delete(),
+          'verificationCodeExpiresAt': FieldValue.delete(),
+        });
 
     await _loadUserData(currentUser!.uid);
+  }
+
+  /// Hash verification code using SHA256
+  String _hashCode(String code) {
+    final bytes = utf8.encode(code);
+    final digest = sha256.convert(bytes);
+    return digest.toString();
   }
 
   Future<UserCredential> signInWithEmail(String email, String password) async {
@@ -207,6 +229,9 @@ class AuthService extends ChangeNotifier {
           await _auth.signOut();
           throw 'Your account is pending admin approval.';
         }
+
+        // Refresh FCM token after successful login
+        await NotificationService().refreshFcmToken();
       }
 
       return credential;
@@ -220,7 +245,7 @@ class AuthService extends ChangeNotifier {
     try {
       // First, sign out from any existing Google session to allow account selection
       await _googleSignIn.signOut();
-      
+
       // Trigger the Google Sign-In flow
       final GoogleSignInAccount? googleUser = await _googleSignIn.signIn();
 
@@ -267,6 +292,9 @@ class AuthService extends ChangeNotifier {
           throw 'Your account is pending admin approval.';
         }
 
+        // Refresh FCM token for existing user
+        await NotificationService().refreshFcmToken();
+
         return GoogleSignInResult(
           credential: userCredential,
           isNewUser: false,
@@ -289,19 +317,21 @@ class AuthService extends ChangeNotifier {
       if (e is String) rethrow;
       // Check for common error patterns
       final errorMessage = e.toString().toLowerCase();
-      if (errorMessage.contains('network') || errorMessage.contains('internet')) {
+      if (errorMessage.contains('network') ||
+          errorMessage.contains('internet')) {
         throw 'Network error. Please check your internet connection.';
       }
       if (errorMessage.contains('cancel')) {
         throw 'Google sign-in was cancelled';
       }
-      if (errorMessage.contains('api') || errorMessage.contains('configuration')) {
+      if (errorMessage.contains('api') ||
+          errorMessage.contains('configuration')) {
         throw 'Google Sign-In is not properly configured. Please contact support.';
       }
       throw 'Google sign-in failed: ${e.toString()}';
     }
   }
-  
+
   /// Sign out from Google (for cancelling registration flow)
   Future<void> signOutFromGoogle() async {
     try {
@@ -316,11 +346,11 @@ class AuthService extends ChangeNotifier {
   Future<void> completeGoogleOwnerRegistration({
     required String fullName,
     required String residenceName,
-    required String verificationCode,
   }) async {
     if (currentUser == null) throw 'Please sign in first';
 
     // Create owner document in Firestore
+    // Note: Cloud Function will generate and send verification code
     final userModel = UserModel(
       uid: currentUser!.uid,
       fullName: fullName,
@@ -329,7 +359,6 @@ class AuthService extends ChangeNotifier {
       residenceName: residenceName,
       createdAt: DateTime.now(),
       isActive: false,
-      verificationCode: verificationCode,
       isVerified: false,
     );
 

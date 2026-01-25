@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:provider/provider.dart';
 import 'package:hostelapp/models/rent_due_model.dart';
 import 'package:hostelapp/models/payment_model.dart';
@@ -622,24 +623,57 @@ class _FinanceScreenState extends State<FinanceScreen>
           if (payment.transactionId.isNotEmpty) ...[
             const SizedBox(height: 12),
             Container(
-              padding: const EdgeInsets.all(10),
+              padding: const EdgeInsets.all(12),
               decoration: BoxDecoration(
-                color: Colors.grey[50],
+                color: Colors.blue[50],
                 borderRadius: BorderRadius.circular(8),
+                border: Border.all(color: Colors.blue[100]!),
               ),
               child: Row(
                 children: [
-                  Icon(Icons.receipt_long, size: 16, color: Colors.grey[600]),
-                  const SizedBox(width: 8),
+                  Icon(Icons.receipt_long, size: 18, color: Colors.blue[700]),
+                  const SizedBox(width: 10),
                   Expanded(
-                    child: Text(
-                      'TXN: ${payment.transactionId}',
-                      style: TextStyle(
-                        fontSize: 11,
-                        color: Colors.grey[700],
-                        fontFamily: 'monospace',
-                      ),
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text(
+                          'Transaction ID',
+                          style: TextStyle(
+                            fontSize: 10,
+                            color: Colors.blue[600],
+                            fontWeight: FontWeight.w500,
+                          ),
+                        ),
+                        const SizedBox(height: 2),
+                        SelectableText(
+                          payment.transactionId,
+                          style: TextStyle(
+                            fontSize: 13,
+                            color: Colors.blue[900],
+                            fontFamily: 'monospace',
+                            fontWeight: FontWeight.w600,
+                          ),
+                        ),
+                      ],
                     ),
+                  ),
+                  IconButton(
+                    icon: Icon(Icons.copy, size: 18, color: Colors.blue[600]),
+                    onPressed: () {
+                      Clipboard.setData(
+                        ClipboardData(text: payment.transactionId),
+                      );
+                      ScaffoldMessenger.of(context).showSnackBar(
+                        const SnackBar(
+                          content: Text('Transaction ID copied!'),
+                          duration: Duration(seconds: 2),
+                        ),
+                      );
+                    },
+                    tooltip: 'Copy Transaction ID',
+                    padding: EdgeInsets.zero,
+                    constraints: const BoxConstraints(),
                   ),
                 ],
               ),

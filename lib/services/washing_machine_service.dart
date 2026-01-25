@@ -13,65 +13,88 @@ class WashingMachineService extends ChangeNotifier {
     required String userName,
     required String roomNo,
     required int clothesCount,
+    String? residenceName,
   }) async {
-    // Check if machine is already in use
-    final activeSessions = await _firestore
-        .collection(AppConstants.washingMachinesCollection)
-        .where('machineId', isEqualTo: machineId)
-        .where('status', isEqualTo: 'busy')
-        .get();
+    try {
+      // Use transaction to prevent race conditions
+      await _firestore.runTransaction((transaction) async {
+        // Check if machine is already in use within transaction
+        final activeSessions = await _firestore
+            .collection(AppConstants.washingMachinesCollection)
+            .where('machineId', isEqualTo: machineId)
+            .where('status', isEqualTo: 'busy')
+            .get();
 
-    if (activeSessions.docs.isNotEmpty) {
-      throw 'This machine is already in use.';
+        if (activeSessions.docs.isNotEmpty) {
+          throw WashingMachineException('This machine is already in use.');
+        }
+
+        final session = WashingMachineSession(
+          id: '',
+          machineId: machineId,
+          userId: userId,
+          userName: userName,
+          roomNo: roomNo,
+          clothesCount: clothesCount,
+          startTime: DateTime.now(),
+          status: MachineStatus.busy,
+        );
+
+        final docRef = _firestore
+            .collection(AppConstants.washingMachinesCollection)
+            .doc();
+        transaction.set(docRef, session.toMap());
+      });
+
+      // Send notification for machine booking (broadcast to residence)
+      await NotificationService().sendMachineBookingNotification(
+        machineName: machineId,
+        slotTime: 'Now',
+        userId: userId,
+        userName: userName,
+        residenceName: residenceName,
+      );
+
+      notifyListeners();
+    } on WashingMachineException {
+      rethrow;
+    } catch (e) {
+      throw WashingMachineException('Failed to start session: $e');
     }
-
-    final session = WashingMachineSession(
-      id: '',
-      machineId: machineId,
-      userId: userId,
-      userName: userName,
-      roomNo: roomNo,
-      clothesCount: clothesCount,
-      startTime: DateTime.now(),
-      status: MachineStatus.busy,
-    );
-
-    await _firestore
-        .collection(AppConstants.washingMachinesCollection)
-        .add(session.toMap());
-
-    // Send notification for machine booking
-    await NotificationService().sendMachineBookingNotification(
-      machineName: 'Machine $machineId',
-      slotTime: 'Now',
-      userId: userId,
-    );
-
-    notifyListeners();
   }
 
-  Future<void> endSession(String sessionId) async {
-    // Get session details first
-    final sessionDoc = await _firestore
-        .collection(AppConstants.washingMachinesCollection)
-        .doc(sessionId)
-        .get();
+  Future<void> endSession(String sessionId, {String? residenceName}) async {
+    try {
+      // Get session details first
+      final sessionDoc = await _firestore
+          .collection(AppConstants.washingMachinesCollection)
+          .doc(sessionId)
+          .get();
 
-    final sessionData = sessionDoc.data();
+      if (!sessionDoc.exists) {
+        throw WashingMachineException('Session not found.');
+      }
 
-    await _firestore
-        .collection(AppConstants.washingMachinesCollection)
-        .doc(sessionId)
-        .update({'endTime': Timestamp.now(), 'status': 'free'});
+      final sessionData = sessionDoc.data();
 
-    // Send notification that machine is available
-    if (sessionData != null) {
-      await NotificationService().sendMachineAvailableNotification(
-        machineName: 'Machine ${sessionData['machineId']}',
-      );
+      await _firestore
+          .collection(AppConstants.washingMachinesCollection)
+          .doc(sessionId)
+          .update({'endTime': Timestamp.now(), 'status': 'free'});
+
+      // Send notification that machine is available (broadcast to residence)
+      if (sessionData != null) {
+        await NotificationService().sendMachineAvailableNotification(
+          machineName: sessionData['machineId'] ?? 'Machine',
+          residenceName: residenceName,
+        );
+      }
+
+      notifyListeners();
+    } catch (e) {
+      if (e is WashingMachineException) rethrow;
+      throw WashingMachineException('Failed to end session: $e');
     }
-
-    notifyListeners();
   }
 
   Stream<WashingMachineSession?> getActiveSession(String machineId) {
@@ -150,4 +173,14 @@ class WashingMachineService extends ChangeNotifier {
   int getTotalMachines() {
     return AppConstants.machineIds.length;
   }
+}
+
+/// Custom exception for washing machine operations
+class WashingMachineException implements Exception {
+  final String message;
+
+  WashingMachineException(this.message);
+
+  @override
+  String toString() => message;
 }

@@ -149,7 +149,10 @@ class _UnifiedDashboardState extends State<UnifiedDashboard> {
           // Notification Bell with Badge
           StreamBuilder<int>(
             stream: isStudent
-                ? NotificationService().getUnreadCountForUser(user?.uid ?? '')
+                ? NotificationService().getUnreadCountForStudent(
+                    userId: user?.uid ?? '',
+                    residenceName: user?.residenceName ?? '',
+                  )
                 : NotificationService().getUnreadCountForResidence(
                     user?.residenceName ?? '',
                   ),
@@ -316,7 +319,10 @@ class _UnifiedDashboardState extends State<UnifiedDashboard> {
             Expanded(
               child: StreamBuilder<List<Map<String, dynamic>>>(
                 stream: isStudent
-                    ? notificationService.getUserNotifications(user?.uid ?? '')
+                    ? notificationService.getStudentNotifications(
+                        userId: user?.uid ?? '',
+                        residenceName: user?.residenceName ?? '',
+                      )
                     : notificationService.getResidenceNotifications(
                         user?.residenceName ?? '',
                       ),
