@@ -41,6 +41,9 @@ dependencies:
   # State Management
   provider: ^6.1.0
   
+  # Authentication
+  google_sign_in: ^6.2.1
+  
   # UI
   google_fonts: ^6.1.0
   flutter_svg: ^2.0.10

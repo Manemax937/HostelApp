@@ -53,13 +53,13 @@ class ComplaintService extends ChangeNotifier {
 
       // Send notifications
       final notificationService = NotificationService();
-      
+
       // Notify student that complaint is submitted
       await notificationService.sendComplaintSubmittedNotification(
         userId: userId,
         category: complaint.categoryName,
       );
-      
+
       // Notify owner about new complaint
       await notificationService.sendNewComplaintNotification(
         studentName: userName,
@@ -137,7 +137,7 @@ class ComplaintService extends ChangeNotifier {
     if (residenceName.isEmpty) {
       return Stream.value([]);
     }
-    
+
     return _firestore
         .collection(AppConstants.complaintsCollection)
         .where('residenceName', isEqualTo: residenceName)
@@ -154,10 +154,12 @@ class ComplaintService extends ChangeNotifier {
   }
 
   /// Filter out resolved complaints older than 24 hours
-  List<ComplaintModel> _filterOldResolvedComplaints(List<ComplaintModel> complaints) {
+  List<ComplaintModel> _filterOldResolvedComplaints(
+    List<ComplaintModel> complaints,
+  ) {
     final now = DateTime.now();
     final cutoff = now.subtract(const Duration(hours: 24));
-    
+
     return complaints.where((complaint) {
       // Keep all non-resolved complaints
       if (complaint.status != ComplaintStatus.resolved) {
@@ -173,27 +175,27 @@ class ComplaintService extends ChangeNotifier {
   Future<void> cleanupOldResolvedComplaints() async {
     try {
       final cutoff = DateTime.now().subtract(const Duration(hours: 24));
-      
+
       final snapshot = await _firestore
           .collection(AppConstants.complaintsCollection)
           .where('status', isEqualTo: 'resolved')
           .get();
-      
+
       final batch = _firestore.batch();
       int deleteCount = 0;
-      
+
       for (final doc in snapshot.docs) {
         final data = doc.data();
         final updatedAt = data['updatedAt'] as Timestamp?;
         final createdAt = data['createdAt'] as Timestamp?;
         final resolvedTime = updatedAt?.toDate() ?? createdAt?.toDate();
-        
+
         if (resolvedTime != null && resolvedTime.isBefore(cutoff)) {
           batch.delete(doc.reference);
           deleteCount++;
         }
       }
-      
+
       if (deleteCount > 0) {
         await batch.commit();
         debugPrint('Cleaned up $deleteCount old resolved complaints');
@@ -210,12 +212,12 @@ class ComplaintService extends ChangeNotifier {
         .collection(AppConstants.complaintsCollection)
         .doc(complaintId)
         .get();
-    
+
     if (doc.exists) {
       final data = doc.data()!;
       final userId = data['userId'] as String;
       final category = data['category'] as String;
-      
+
       await _firestore
           .collection(AppConstants.complaintsCollection)
           .doc(complaintId)

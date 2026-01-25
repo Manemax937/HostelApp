@@ -150,7 +150,9 @@ class _UnifiedDashboardState extends State<UnifiedDashboard> {
           StreamBuilder<int>(
             stream: isStudent
                 ? NotificationService().getUnreadCountForUser(user?.uid ?? '')
-                : NotificationService().getUnreadCountForResidence(user?.residenceName ?? ''),
+                : NotificationService().getUnreadCountForResidence(
+                    user?.residenceName ?? '',
+                  ),
             builder: (context, snapshot) {
               final unreadCount = snapshot.data ?? 0;
               return Stack(
@@ -263,9 +265,13 @@ class _UnifiedDashboardState extends State<UnifiedDashboard> {
     ),
   ];
 
-  void _showNotificationsSheet(BuildContext context, dynamic user, bool isStudent) {
+  void _showNotificationsSheet(
+    BuildContext context,
+    dynamic user,
+    bool isStudent,
+  ) {
     final notificationService = NotificationService();
-    
+
     showModalBottomSheet(
       context: context,
       isScrollControlled: true,
@@ -296,10 +302,7 @@ class _UnifiedDashboardState extends State<UnifiedDashboard> {
                 children: [
                   const Text(
                     'Notifications',
-                    style: TextStyle(
-                      fontSize: 20,
-                      fontWeight: FontWeight.bold,
-                    ),
+                    style: TextStyle(fontSize: 20, fontWeight: FontWeight.bold),
                   ),
                   TextButton(
                     onPressed: () => Navigator.pop(context),
@@ -314,7 +317,9 @@ class _UnifiedDashboardState extends State<UnifiedDashboard> {
               child: StreamBuilder<List<Map<String, dynamic>>>(
                 stream: isStudent
                     ? notificationService.getUserNotifications(user?.uid ?? '')
-                    : notificationService.getResidenceNotifications(user?.residenceName ?? ''),
+                    : notificationService.getResidenceNotifications(
+                        user?.residenceName ?? '',
+                      ),
                 builder: (context, snapshot) {
                   if (snapshot.connectionState == ConnectionState.waiting) {
                     return const Center(child: CircularProgressIndicator());
@@ -325,7 +330,11 @@ class _UnifiedDashboardState extends State<UnifiedDashboard> {
                       child: Column(
                         mainAxisAlignment: MainAxisAlignment.center,
                         children: [
-                          Icon(Icons.error_outline, size: 48, color: Colors.red[300]),
+                          Icon(
+                            Icons.error_outline,
+                            size: 48,
+                            color: Colors.red[300],
+                          ),
                           const SizedBox(height: 16),
                           Text(
                             'Error loading notifications',
@@ -368,7 +377,7 @@ class _UnifiedDashboardState extends State<UnifiedDashboard> {
                       final data = notifications[index];
                       final isRead = data['isRead'] ?? false;
                       final notificationId = data['id'] ?? '';
-                      
+
                       return ListTile(
                         onTap: () {
                           if (!isRead && notificationId.isNotEmpty) {
@@ -379,7 +388,9 @@ class _UnifiedDashboardState extends State<UnifiedDashboard> {
                           width: 40,
                           height: 40,
                           decoration: BoxDecoration(
-                            color: _getNotificationColor(data['type']).withOpacity(0.1),
+                            color: _getNotificationColor(
+                              data['type'],
+                            ).withOpacity(0.1),
                             borderRadius: BorderRadius.circular(10),
                           ),
                           child: Icon(
@@ -391,7 +402,9 @@ class _UnifiedDashboardState extends State<UnifiedDashboard> {
                         title: Text(
                           data['title'] ?? 'Notification',
                           style: TextStyle(
-                            fontWeight: isRead ? FontWeight.normal : FontWeight.bold,
+                            fontWeight: isRead
+                                ? FontWeight.normal
+                                : FontWeight.bold,
                             fontSize: 14,
                           ),
                         ),

@@ -2,6 +2,15 @@ import 'package:firebase_messaging/firebase_messaging.dart';
 import 'package:flutter_local_notifications/flutter_local_notifications.dart';
 import 'package:flutter/foundation.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:firebase_auth/firebase_auth.dart';
+
+/// Background message handler - MUST be a top-level function
+@pragma('vm:entry-point')
+Future<void> firebaseMessagingBackgroundHandler(RemoteMessage message) async {
+  debugPrint('Background message received: ${message.notification?.title}');
+  // Background messages are automatically displayed by FCM on Android
+  // For iOS, you might need additional setup
+}
 
 /// Notification types for the app
 enum NotificationType {
@@ -23,6 +32,10 @@ class NotificationService {
   final FlutterLocalNotificationsPlugin _localNotifications =
       FlutterLocalNotificationsPlugin();
   final FirebaseFirestore _firestore = FirebaseFirestore.instance;
+  final FirebaseAuth _auth = FirebaseAuth.instance;
+
+  /// Get current user ID
+  String? get _currentUserId => _auth.currentUser?.uid;
 
   Future<void> initialize() async {
     // Request permission
@@ -48,9 +61,63 @@ class NotificationService {
     // Handle foreground messages
     FirebaseMessaging.onMessage.listen(_handleForegroundMessage);
 
-    // Get FCM token
-    final token = await _messaging.getToken();
-    debugPrint('FCM Token: $token');
+    // Handle background messages - handler is registered in main.dart
+    // FirebaseMessaging.onBackgroundMessage is set up there
+
+    // Handle notification taps when app is in background/terminated
+    FirebaseMessaging.onMessageOpenedApp.listen(_handleNotificationTap);
+
+    // Check if app was opened from a notification
+    final initialMessage = await _messaging.getInitialMessage();
+    if (initialMessage != null) {
+      _handleNotificationTap(initialMessage);
+    }
+
+    // Get and save FCM token
+    await _saveUserFcmToken();
+
+    // Listen for token refresh
+    _messaging.onTokenRefresh.listen((token) {
+      _saveUserFcmToken();
+    });
+  }
+
+  /// Handle notification tap
+  void _handleNotificationTap(RemoteMessage message) {
+    debugPrint('Notification tapped: ${message.data}');
+    // You can navigate to specific screens based on message.data
+  }
+
+  /// Background message handler (must be top-level function)
+  static Future<void> _firebaseMessagingBackgroundHandler(
+    RemoteMessage message,
+  ) async {
+    debugPrint('Background message: ${message.notification?.title}');
+  }
+
+  /// Save FCM token to user's document for push notifications
+  Future<void> _saveUserFcmToken() async {
+    try {
+      final token = await _messaging.getToken();
+      final userId = _currentUserId;
+
+      if (token != null && userId != null) {
+        await _firestore.collection('users').doc(userId).update({
+          'fcmToken': token,
+          'fcmTokenUpdatedAt': Timestamp.now(),
+        });
+        debugPrint('FCM Token saved for user: $userId');
+      }
+    } catch (e) {
+      debugPrint('Error saving FCM token: $e');
+    }
+  }
+
+  /// Subscribe user to residence topic for broadcast notifications
+  Future<void> subscribeToResidence(String residenceName) async {
+    final topic = residenceName.replaceAll(' ', '_').toLowerCase();
+    await _messaging.subscribeToTopic(topic);
+    debugPrint('Subscribed to topic: $topic');
   }
 
   Future<void> _handleForegroundMessage(RemoteMessage message) async {
@@ -114,35 +181,31 @@ class NotificationService {
   }
 
   // ============ NOTICE NOTIFICATIONS ============
-  
-  /// Send notification when a new notice is posted
+
+  /// Send notification when a new notice is posted (for residents, not owner)
   Future<void> sendNoticeNotification({
     required String residenceName,
     required String noticeTitle,
     required String noticeContent,
   }) async {
-    await _showLocalNotification(
-      title: '📢 New Notice',
-      body: noticeTitle,
-      payload: 'notice',
-    );
-    
-    // Save to notifications collection
+    // DON'T show local notification to owner who posted it
+    // Save to Firestore for residents to see in their notification list
     await _saveNotification(
       type: NotificationType.notice,
-      title: 'New Notice',
+      title: '📢 New Notice',
       body: noticeTitle,
       residenceName: residenceName,
     );
   }
 
   // ============ ATTENDANCE NOTIFICATIONS ============
-  
-  /// Send notification for attendance reminder
+
+  /// Send notification for attendance reminder (self notification - OK to show)
   Future<void> sendAttendanceReminder({
     required String userId,
     required String userName,
   }) async {
+    // This is a reminder for self, so show local notification
     await _showLocalNotification(
       title: '📍 Attendance Reminder',
       body: 'Don\'t forget to mark your attendance today!',
@@ -150,26 +213,29 @@ class NotificationService {
     );
   }
 
-  /// Send notification when attendance is marked
+  /// Send notification when attendance is marked (self confirmation)
   Future<void> sendAttendanceMarkedNotification({
     required String userName,
     required bool isPresent,
   }) async {
+    // This is self-confirmation, show local notification
     await _showLocalNotification(
       title: '✅ Attendance Marked',
-      body: 'Your attendance has been marked as ${isPresent ? "Present" : "Absent"} for today.',
+      body:
+          'Your attendance has been marked as ${isPresent ? "Present" : "Absent"} for today.',
       payload: 'attendance',
     );
   }
 
   // ============ MACHINE NOTIFICATIONS ============
-  
-  /// Send notification when machine booking is confirmed
+
+  /// Send notification when machine booking is confirmed (self confirmation)
   Future<void> sendMachineBookingNotification({
     required String machineName,
     required String slotTime,
     required String userId,
   }) async {
+    // Self confirmation - show local
     await _showLocalNotification(
       title: '🧺 Booking Confirmed',
       body: '$machineName booked for $slotTime',
@@ -201,40 +267,40 @@ class NotificationService {
   }
 
   // ============ FINANCE NOTIFICATIONS ============
-  
-  /// Send notification when rent is due
+
+  /// Send notification when rent is due (called by owner, notifies student)
   Future<void> sendRentDueNotification({
     required String userId,
     required String userName,
     required double amount,
     required String month,
   }) async {
-    await _showLocalNotification(
-      title: '💰 Rent Due',
-      body: 'Your rent of ₹${amount.toStringAsFixed(0)} for $month is due',
-      payload: 'finance',
-    );
-    
+    // Don't show local notification - owner is sending this
+    // Save to Firestore for the student to see
     await _saveNotification(
       type: NotificationType.finance,
       title: 'Rent Due',
-      body: 'Rent of ₹${amount.toStringAsFixed(0)} for $month is due',
+      body: 'Your rent of ₹${amount.toStringAsFixed(0)} for $month is due',
       userId: userId,
     );
   }
 
-  /// Send notification when payment is received
+  /// Send notification when payment is received (confirmation to student)
   Future<void> sendPaymentReceivedNotification({
     required String userId,
     required double amount,
     required String month,
   }) async {
-    await _showLocalNotification(
-      title: '✅ Payment Received',
-      body: 'Your payment of ₹${amount.toStringAsFixed(0)} for $month has been received',
-      payload: 'finance',
-    );
-    
+    // Show local notification only if current user is the recipient
+    if (_currentUserId == userId) {
+      await _showLocalNotification(
+        title: '✅ Payment Received',
+        body:
+            'Your payment of ₹${amount.toStringAsFixed(0)} for $month has been received',
+        payload: 'finance',
+      );
+    }
+
     await _saveNotification(
       type: NotificationType.finance,
       title: 'Payment Received',
@@ -243,64 +309,63 @@ class NotificationService {
     );
   }
 
-  /// Send notification when payment is verified by owner
+  /// Send notification when payment is verified by owner (notifies student)
   Future<void> sendPaymentVerifiedNotification({
     required String userId,
     required double amount,
   }) async {
-    await _showLocalNotification(
-      title: '✅ Payment Verified',
+    // Don't show local notification - owner is verifying
+    // Save to Firestore for the student to see
+    await _saveNotification(
+      type: NotificationType.finance,
+      title: 'Payment Verified',
       body: 'Your payment of ₹${amount.toStringAsFixed(0)} has been verified',
-      payload: 'finance',
+      userId: userId,
     );
   }
 
-  /// Send notification to owner about pending payment verification
+  /// Send notification to owner about pending payment verification (student submits)
   Future<void> sendPaymentPendingVerificationNotification({
     required String studentName,
     required double amount,
     required String residenceName,
   }) async {
-    await _showLocalNotification(
-      title: '💳 Payment Pending Verification',
-      body: '$studentName submitted payment of ₹${amount.toStringAsFixed(0)}',
-      payload: 'finance',
-    );
-    
+    // Don't show local notification - student is submitting
+    // Save to Firestore for owner to see
     await _saveNotification(
       type: NotificationType.finance,
       title: 'Payment Pending',
-      body: '$studentName submitted ₹${amount.toStringAsFixed(0)}',
+      body:
+          '$studentName submitted ₹${amount.toStringAsFixed(0)} for verification',
       residenceName: residenceName,
     );
   }
 
   // ============ SUPPORT NOTIFICATIONS ============
-  
-  /// Send notification when complaint is submitted
+
+  /// Send notification when complaint is submitted (confirmation to student)
   Future<void> sendComplaintSubmittedNotification({
     required String userId,
     required String category,
   }) async {
-    await _showLocalNotification(
-      title: '📝 Complaint Submitted',
-      body: 'Your $category complaint has been submitted',
-      payload: 'support',
-    );
+    // Show local notification as confirmation to the student who submitted
+    if (_currentUserId == userId) {
+      await _showLocalNotification(
+        title: '📝 Complaint Submitted',
+        body: 'Your $category complaint has been submitted',
+        payload: 'support',
+      );
+    }
   }
 
-  /// Send notification to owner about new complaint
+  /// Send notification to owner about new complaint (student submits)
   Future<void> sendNewComplaintNotification({
     required String studentName,
     required String category,
     required String residenceName,
   }) async {
-    await _showLocalNotification(
-      title: '🆘 New Complaint',
-      body: '$studentName raised a $category complaint',
-      payload: 'support',
-    );
-    
+    // Don't show local notification - student is submitting
+    // Save to Firestore for owner to see
     await _saveNotification(
       type: NotificationType.support,
       title: 'New Complaint',
@@ -309,17 +374,13 @@ class NotificationService {
     );
   }
 
-  /// Send notification when complaint is resolved
+  /// Send notification when complaint is resolved (notifies student)
   Future<void> sendComplaintResolvedNotification({
     required String userId,
     required String category,
   }) async {
-    await _showLocalNotification(
-      title: '✅ Complaint Resolved',
-      body: 'Your $category complaint has been resolved',
-      payload: 'support',
-    );
-    
+    // Don't show local notification - owner is resolving
+    // Save to Firestore for student to see
     await _saveNotification(
       type: NotificationType.support,
       title: 'Complaint Resolved',
@@ -329,11 +390,9 @@ class NotificationService {
   }
 
   // ============ VERIFICATION NOTIFICATIONS ============
-  
+
   /// Send verification code notification
-  Future<void> sendVerificationCodeNotification({
-    required String code,
-  }) async {
+  Future<void> sendVerificationCodeNotification({required String code}) async {
     await _showLocalNotification(
       title: '🔐 Verification Code',
       body: 'Your verification code is: $code',
@@ -351,7 +410,7 @@ class NotificationService {
   }
 
   // ============ GENERAL NOTIFICATIONS ============
-  
+
   /// Send welcome notification to new user
   Future<void> sendWelcomeNotification({
     required String userName,
@@ -365,7 +424,7 @@ class NotificationService {
   }
 
   // ============ NOTIFICATION STORAGE ============
-  
+
   /// Save notification to Firestore for history
   Future<void> _saveNotification({
     required NotificationType type,
@@ -392,7 +451,7 @@ class NotificationService {
   /// Get notifications for a user
   Stream<List<Map<String, dynamic>>> getUserNotifications(String userId) {
     if (userId.isEmpty) return Stream.value([]);
-    
+
     return _firestore
         .collection('notifications')
         .where('userId', isEqualTo: userId)
@@ -405,8 +464,10 @@ class NotificationService {
           }).toList();
           // Sort locally to avoid composite index requirement
           list.sort((a, b) {
-            final aTime = (a['createdAt'] as Timestamp?)?.toDate() ?? DateTime.now();
-            final bTime = (b['createdAt'] as Timestamp?)?.toDate() ?? DateTime.now();
+            final aTime =
+                (a['createdAt'] as Timestamp?)?.toDate() ?? DateTime.now();
+            final bTime =
+                (b['createdAt'] as Timestamp?)?.toDate() ?? DateTime.now();
             return bTime.compareTo(aTime);
           });
           return list.take(50).toList();
@@ -414,9 +475,11 @@ class NotificationService {
   }
 
   /// Get notifications for a residence (for owner)
-  Stream<List<Map<String, dynamic>>> getResidenceNotifications(String residenceName) {
+  Stream<List<Map<String, dynamic>>> getResidenceNotifications(
+    String residenceName,
+  ) {
     if (residenceName.isEmpty) return Stream.value([]);
-    
+
     return _firestore
         .collection('notifications')
         .where('residenceName', isEqualTo: residenceName)
@@ -429,8 +492,10 @@ class NotificationService {
           }).toList();
           // Sort locally to avoid composite index requirement
           list.sort((a, b) {
-            final aTime = (a['createdAt'] as Timestamp?)?.toDate() ?? DateTime.now();
-            final bTime = (b['createdAt'] as Timestamp?)?.toDate() ?? DateTime.now();
+            final aTime =
+                (a['createdAt'] as Timestamp?)?.toDate() ?? DateTime.now();
+            final bTime =
+                (b['createdAt'] as Timestamp?)?.toDate() ?? DateTime.now();
             return bTime.compareTo(aTime);
           });
           return list.take(50).toList();
@@ -447,27 +512,29 @@ class NotificationService {
   /// Get unread notification count for user
   Stream<int> getUnreadCountForUser(String userId) {
     if (userId.isEmpty) return Stream.value(0);
-    
+
     return _firestore
         .collection('notifications')
         .where('userId', isEqualTo: userId)
         .snapshots()
-        .map((snapshot) => snapshot.docs
-            .where((doc) => doc.data()['isRead'] != true)
-            .length);
+        .map(
+          (snapshot) =>
+              snapshot.docs.where((doc) => doc.data()['isRead'] != true).length,
+        );
   }
 
   /// Get unread notification count for residence
   Stream<int> getUnreadCountForResidence(String residenceName) {
     if (residenceName.isEmpty) return Stream.value(0);
-    
+
     return _firestore
         .collection('notifications')
         .where('residenceName', isEqualTo: residenceName)
         .snapshots()
-        .map((snapshot) => snapshot.docs
-            .where((doc) => doc.data()['isRead'] != true)
-            .length);
+        .map(
+          (snapshot) =>
+              snapshot.docs.where((doc) => doc.data()['isRead'] != true).length,
+        );
   }
 
   /// Clear old notifications (older than 30 days)

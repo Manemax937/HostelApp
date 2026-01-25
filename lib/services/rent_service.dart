@@ -198,7 +198,7 @@ class RentService {
     // Get payment details for notification
     final paymentDoc = await _paymentsCollection.doc(paymentId).get();
     final paymentData = paymentDoc.data() as Map<String, dynamic>?;
-    
+
     await _paymentsCollection.doc(paymentId).update({
       'status': 'verified',
       'verifiedAt': Timestamp.now(),

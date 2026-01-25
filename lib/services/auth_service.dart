@@ -1,15 +1,20 @@
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:flutter/foundation.dart';
+import 'package:google_sign_in/google_sign_in.dart';
 import 'package:hostelapp/models/user_model.dart';
 import 'package:hostelapp/utils/app_constants.dart';
 
 class AuthService extends ChangeNotifier {
   final FirebaseAuth _auth = FirebaseAuth.instance;
   final FirebaseFirestore _firestore = FirebaseFirestore.instance;
+  final GoogleSignIn _googleSignIn = GoogleSignIn();
 
   User? get currentUser => _auth.currentUser;
   Stream<User?> get authStateChanges => _auth.authStateChanges();
+
+  /// Check if email is verified (for students)
+  bool get isEmailVerified => _auth.currentUser?.emailVerified ?? false;
 
   UserModel? _currentUserModel;
   UserModel? get currentUserModel => _currentUserModel;
@@ -84,14 +89,18 @@ class AuthService extends ChangeNotifier {
           .doc(credential.user!.uid)
           .set(userModel.toMap());
 
-      // Sign out immediately
+      // Send email verification link
+      await credential.user!.sendEmailVerification();
+
+      // Sign out - user needs to verify email first
       await _auth.signOut();
 
       if (!isActive) {
         throw 'Residence "$residenceName" not found or not verified. Your account is created but needs admin approval.';
       }
 
-      return credential;
+      // Throw message to inform about email verification
+      throw 'Registration successful! Please check your email and click the verification link before signing in.';
     } on FirebaseAuthException catch (e) {
       throw _handleAuthException(e);
     }
@@ -187,6 +196,13 @@ class AuthService extends ChangeNotifier {
 
       if (doc.exists) {
         final user = UserModel.fromMap(doc.data()!, doc.id);
+
+        // For students, check email verification
+        if (user.role == UserRole.student && !credential.user!.emailVerified) {
+          await _auth.signOut();
+          throw 'Please verify your email first. Check your inbox for a verification link.';
+        }
+
         if (!user.isActive) {
           await _auth.signOut();
           throw 'Your account is pending admin approval.';
@@ -197,6 +213,190 @@ class AuthService extends ChangeNotifier {
     } on FirebaseAuthException catch (e) {
       throw _handleAuthException(e);
     }
+  }
+
+  /// Sign in with Google - returns credential and whether user is new
+  Future<GoogleSignInResult> signInWithGoogle() async {
+    try {
+      // First, sign out from any existing Google session to allow account selection
+      await _googleSignIn.signOut();
+      
+      // Trigger the Google Sign-In flow
+      final GoogleSignInAccount? googleUser = await _googleSignIn.signIn();
+
+      if (googleUser == null) {
+        throw 'Google sign-in was cancelled';
+      }
+
+      // Obtain the auth details from the request
+      final GoogleSignInAuthentication googleAuth;
+      try {
+        googleAuth = await googleUser.authentication;
+      } catch (e) {
+        debugPrint('Google auth error: $e');
+        throw 'Failed to authenticate with Google. Please try again.';
+      }
+
+      // Verify we have the required tokens
+      if (googleAuth.accessToken == null && googleAuth.idToken == null) {
+        throw 'Failed to get authentication tokens from Google.';
+      }
+
+      // Create a new credential
+      final credential = GoogleAuthProvider.credential(
+        accessToken: googleAuth.accessToken,
+        idToken: googleAuth.idToken,
+      );
+
+      // Sign in to Firebase with the credential
+      final userCredential = await _auth.signInWithCredential(credential);
+
+      // Check if user already exists in Firestore
+      final doc = await _firestore
+          .collection(AppConstants.usersCollection)
+          .doc(userCredential.user!.uid)
+          .get();
+
+      if (doc.exists) {
+        // Existing user - load their data and return
+        final user = UserModel.fromMap(doc.data()!, doc.id);
+
+        if (!user.isActive) {
+          await _googleSignIn.signOut();
+          await _auth.signOut();
+          throw 'Your account is pending admin approval.';
+        }
+
+        return GoogleSignInResult(
+          credential: userCredential,
+          isNewUser: false,
+          userRole: user.role,
+        );
+      }
+
+      // New user - they need to complete registration
+      return GoogleSignInResult(
+        credential: userCredential,
+        isNewUser: true,
+        userRole: null,
+      );
+    } on FirebaseAuthException catch (e) {
+      debugPrint('Firebase Auth error: ${e.code} - ${e.message}');
+      await _googleSignIn.signOut();
+      throw _handleAuthException(e);
+    } catch (e) {
+      debugPrint('Google sign-in error: $e');
+      if (e is String) rethrow;
+      // Check for common error patterns
+      final errorMessage = e.toString().toLowerCase();
+      if (errorMessage.contains('network') || errorMessage.contains('internet')) {
+        throw 'Network error. Please check your internet connection.';
+      }
+      if (errorMessage.contains('cancel')) {
+        throw 'Google sign-in was cancelled';
+      }
+      if (errorMessage.contains('api') || errorMessage.contains('configuration')) {
+        throw 'Google Sign-In is not properly configured. Please contact support.';
+      }
+      throw 'Google sign-in failed: ${e.toString()}';
+    }
+  }
+  
+  /// Sign out from Google (for cancelling registration flow)
+  Future<void> signOutFromGoogle() async {
+    try {
+      await _googleSignIn.signOut();
+      await _auth.signOut();
+    } catch (e) {
+      debugPrint('Sign out error: $e');
+    }
+  }
+
+  /// Complete Google registration for owner
+  Future<void> completeGoogleOwnerRegistration({
+    required String fullName,
+    required String residenceName,
+    required String verificationCode,
+  }) async {
+    if (currentUser == null) throw 'Please sign in first';
+
+    // Create owner document in Firestore
+    final userModel = UserModel(
+      uid: currentUser!.uid,
+      fullName: fullName,
+      email: currentUser!.email ?? '',
+      role: UserRole.owner,
+      residenceName: residenceName,
+      createdAt: DateTime.now(),
+      isActive: false,
+      verificationCode: verificationCode,
+      isVerified: false,
+    );
+
+    await _firestore
+        .collection(AppConstants.usersCollection)
+        .doc(currentUser!.uid)
+        .set(userModel.toMap());
+
+    await _loadUserData(currentUser!.uid);
+  }
+
+  /// Complete Google registration for student
+  Future<void> completeGoogleStudentRegistration({
+    required String fullName,
+    required String roomNo,
+    required int floor,
+    required String residenceName,
+  }) async {
+    if (currentUser == null) throw 'Please sign in first';
+
+    // Check if residence exists
+    final ownerQuery = await _firestore
+        .collection(AppConstants.usersCollection)
+        .where('role', isEqualTo: 'owner')
+        .where('residenceName', isEqualTo: residenceName)
+        .where('isVerified', isEqualTo: true)
+        .get();
+
+    bool isActive = ownerQuery.docs.isNotEmpty;
+
+    // Create student document in Firestore
+    final userModel = UserModel(
+      uid: currentUser!.uid,
+      fullName: fullName,
+      email: currentUser!.email ?? '',
+      role: UserRole.student,
+      roomNo: roomNo,
+      floor: floor,
+      createdAt: DateTime.now(),
+      isActive: isActive,
+      residenceName: residenceName,
+    );
+
+    await _firestore
+        .collection(AppConstants.usersCollection)
+        .doc(currentUser!.uid)
+        .set(userModel.toMap());
+
+    if (!isActive) {
+      await _auth.signOut();
+      throw 'Residence "$residenceName" not found or not verified. Your account is created but needs admin approval.';
+    }
+
+    await _loadUserData(currentUser!.uid);
+  }
+
+  /// Send email verification link
+  Future<void> sendEmailVerification() async {
+    if (currentUser == null) throw 'No user signed in';
+    await currentUser!.sendEmailVerification();
+  }
+
+  /// Reload user to check email verification status
+  Future<bool> checkEmailVerification() async {
+    if (currentUser == null) return false;
+    await currentUser!.reload();
+    return _auth.currentUser?.emailVerified ?? false;
   }
 
   Future<void> signOut() async {
@@ -283,4 +483,17 @@ class AuthService extends ChangeNotifier {
               .toList(),
         );
   }
+}
+
+/// Result from Google Sign-In
+class GoogleSignInResult {
+  final UserCredential credential;
+  final bool isNewUser;
+  final UserRole? userRole;
+
+  GoogleSignInResult({
+    required this.credential,
+    required this.isNewUser,
+    this.userRole,
+  });
 }

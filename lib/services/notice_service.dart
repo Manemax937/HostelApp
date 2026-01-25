@@ -26,7 +26,7 @@ class NoticeService extends ChangeNotifier {
     );
 
     await _firestore.collection('notices').add(notice.toMap());
-    
+
     // Send notification to all residents
     if (residenceName != null) {
       await NotificationService().sendNoticeNotification(
@@ -35,7 +35,7 @@ class NoticeService extends ChangeNotifier {
         noticeContent: description,
       );
     }
-    
+
     notifyListeners();
   }
 

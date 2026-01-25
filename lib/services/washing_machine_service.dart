@@ -56,9 +56,9 @@ class WashingMachineService extends ChangeNotifier {
         .collection(AppConstants.washingMachinesCollection)
         .doc(sessionId)
         .get();
-    
+
     final sessionData = sessionDoc.data();
-    
+
     await _firestore
         .collection(AppConstants.washingMachinesCollection)
         .doc(sessionId)

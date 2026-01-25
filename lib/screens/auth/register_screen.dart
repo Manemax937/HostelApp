@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
+import 'package:hostelapp/screens/auth/google_registration_screen.dart';
 import 'package:hostelapp/services/auth_service.dart';
 import 'package:hostelapp/utils/app_theme.dart';
 import 'package:hostelapp/widgets/custom_button.dart';
@@ -22,6 +23,7 @@ class _RegisterScreenState extends State<RegisterScreen> {
   final _floorController = TextEditingController();
   final _residenceNameController = TextEditingController();
   bool _isLoading = false;
+  bool _isGoogleLoading = false;
   bool _obscurePassword = true;
   bool _isOwner = false;
 
@@ -77,24 +79,83 @@ class _RegisterScreenState extends State<RegisterScreen> {
         if (mounted) {
           ScaffoldMessenger.of(context).showSnackBar(
             const SnackBar(
-              content: Text('Registration successful! You can now sign in.'),
+              content: Text(
+                'Registration successful! Please check your email and verify before signing in.',
+              ),
               backgroundColor: AppTheme.successColor,
+              duration: Duration(seconds: 5),
             ),
           );
         }
       }
     } catch (e) {
       if (mounted) {
+        // Show the message - it might be success message about email verification
+        final message = e.toString();
+        final isSuccess =
+            message.contains('successful') ||
+            message.contains('verification link');
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
-            content: Text(e.toString()),
-            backgroundColor: AppTheme.errorColor,
+            content: Text(message),
+            backgroundColor: isSuccess
+                ? AppTheme.successColor
+                : AppTheme.errorColor,
+            duration: Duration(seconds: isSuccess ? 5 : 3),
           ),
         );
       }
     } finally {
       if (mounted) {
         setState(() => _isLoading = false);
+      }
+    }
+  }
+
+  Future<void> _registerWithGoogle() async {
+    setState(() => _isGoogleLoading = true);
+
+    try {
+      final authService = Provider.of<AuthService>(context, listen: false);
+      final result = await authService.signInWithGoogle();
+
+      if (!mounted) return;
+
+      if (result.isNewUser) {
+        // New user - navigate to registration completion screen
+        Navigator.of(context).push(
+          MaterialPageRoute(
+            builder: (context) => const GoogleRegistrationScreen(),
+          ),
+        );
+      } else {
+        // Existing user - show message
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text(
+              'You already have an account. Please sign in instead.',
+            ),
+            backgroundColor: AppTheme.primaryBlue,
+          ),
+        );
+      }
+    } catch (e) {
+      if (mounted) {
+        final errorMessage = e.toString();
+        // Don't show error for cancelled sign-in
+        if (!errorMessage.toLowerCase().contains('cancelled')) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(
+              content: Text(errorMessage),
+              backgroundColor: AppTheme.errorColor,
+              duration: const Duration(seconds: 4),
+            ),
+          );
+        }
+      }
+    } finally {
+      if (mounted) {
+        setState(() => _isGoogleLoading = false);
       }
     }
   }
@@ -289,7 +350,7 @@ class _RegisterScreenState extends State<RegisterScreen> {
                 return null;
               },
             ),
-            const SizedBox(height: 32),
+            const SizedBox(height: 24),
             SizedBox(
               width: double.infinity,
               child: CustomButton(
@@ -299,10 +360,64 @@ class _RegisterScreenState extends State<RegisterScreen> {
               ),
             ),
             const SizedBox(height: 16),
+
+            // Divider with "or"
+            Row(
+              children: [
+                Expanded(
+                  child: Divider(color: AppTheme.textLight.withOpacity(0.3)),
+                ),
+                Padding(
+                  padding: const EdgeInsets.symmetric(horizontal: 16),
+                  child: Text(
+                    'or',
+                    style: TextStyle(color: AppTheme.textLight),
+                  ),
+                ),
+                Expanded(
+                  child: Divider(color: AppTheme.textLight.withOpacity(0.3)),
+                ),
+              ],
+            ),
+            const SizedBox(height: 16),
+
+            // Google Sign-In Button
+            SizedBox(
+              width: double.infinity,
+              child: OutlinedButton.icon(
+                onPressed: _isGoogleLoading ? null : _registerWithGoogle,
+                style: OutlinedButton.styleFrom(
+                  padding: const EdgeInsets.symmetric(vertical: 14),
+                  side: BorderSide(color: AppTheme.textLight.withOpacity(0.3)),
+                  shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(12),
+                  ),
+                ),
+                icon: _isGoogleLoading
+                    ? const SizedBox(
+                        width: 20,
+                        height: 20,
+                        child: CircularProgressIndicator(strokeWidth: 2),
+                      )
+                    : Image.network(
+                        'https://www.google.com/favicon.ico',
+                        width: 20,
+                        height: 20,
+                        errorBuilder: (_, __, ___) =>
+                            const Icon(Icons.g_mobiledata, size: 24),
+                      ),
+                label: Text(
+                  'Continue with Google',
+                  style: TextStyle(color: AppTheme.textPrimary, fontSize: 16),
+                ),
+              ),
+            ),
+            const SizedBox(height: 16),
+
             Text(
               _isOwner
                   ? 'You will receive a verification code via email\nto activate your account.'
-                  : 'By clicking Request Access, you agree to the Comfort PG\nresident guidelines.',
+                  : 'For email registration, you will receive a\nverification link to confirm your email.',
               textAlign: TextAlign.center,
               style: Theme.of(
                 context,

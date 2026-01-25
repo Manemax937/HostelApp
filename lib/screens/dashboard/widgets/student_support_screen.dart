@@ -157,17 +157,27 @@ class _StudentSupportScreenState extends State<StudentSupportScreen> {
                           padding: const EdgeInsets.all(40),
                           child: Column(
                             children: [
-                              Icon(Icons.error_outline, size: 48, color: Colors.red[400]),
+                              Icon(
+                                Icons.error_outline,
+                                size: 48,
+                                color: Colors.red[400],
+                              ),
                               const SizedBox(height: 16),
                               Text(
                                 'Error loading tickets',
-                                style: TextStyle(color: Colors.red[400], fontSize: 16),
+                                style: TextStyle(
+                                  color: Colors.red[400],
+                                  fontSize: 16,
+                                ),
                               ),
                               const SizedBox(height: 8),
                               Text(
                                 '${snapshot.error}',
                                 textAlign: TextAlign.center,
-                                style: TextStyle(color: Colors.grey[500], fontSize: 12),
+                                style: TextStyle(
+                                  color: Colors.grey[500],
+                                  fontSize: 12,
+                                ),
                               ),
                             ],
                           ),

@@ -97,7 +97,11 @@ class _SupportScreenState extends State<SupportScreen> {
                     child: Column(
                       mainAxisAlignment: MainAxisAlignment.center,
                       children: [
-                        Icon(Icons.error_outline, size: 48, color: Colors.red[400]),
+                        Icon(
+                          Icons.error_outline,
+                          size: 48,
+                          color: Colors.red[400],
+                        ),
                         const SizedBox(height: 16),
                         Text(
                           'Error loading complaints',
@@ -111,7 +115,10 @@ class _SupportScreenState extends State<SupportScreen> {
                         Text(
                           '${snapshot.error}',
                           textAlign: TextAlign.center,
-                          style: TextStyle(color: Colors.grey[600], fontSize: 12),
+                          style: TextStyle(
+                            color: Colors.grey[600],
+                            fontSize: 12,
+                          ),
                         ),
                       ],
                     ),

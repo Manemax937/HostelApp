@@ -268,9 +268,7 @@ class StudentAccountScreen extends StatelessWidget {
                     context: context,
                     builder: (context) => AlertDialog(
                       title: const Text('Sign Out'),
-                      content: const Text(
-                        'Are you sure you want to sign out?',
-                      ),
+                      content: const Text('Are you sure you want to sign out?'),
                       actions: [
                         TextButton(
                           onPressed: () => Navigator.pop(context, false),
