@@ -1,6 +1,7 @@
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:flutter/foundation.dart';
 import 'package:hostelapp/models/notice_model.dart';
+import 'package:hostelapp/services/notification_service.dart';
 
 class NoticeService extends ChangeNotifier {
   final FirebaseFirestore _firestore = FirebaseFirestore.instance;
@@ -25,6 +26,16 @@ class NoticeService extends ChangeNotifier {
     );
 
     await _firestore.collection('notices').add(notice.toMap());
+    
+    // Send notification to all residents
+    if (residenceName != null) {
+      await NotificationService().sendNoticeNotification(
+        residenceName: residenceName,
+        noticeTitle: title,
+        noticeContent: description,
+      );
+    }
+    
     notifyListeners();
   }
 

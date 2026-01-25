@@ -2,11 +2,11 @@ import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import 'package:hostelapp/models/user_model.dart';
 import 'package:hostelapp/models/notice_model.dart';
-import 'package:hostelapp/models/mess_attendance_model.dart';
+import 'package:hostelapp/models/pg_attendance_model.dart';
 import 'package:hostelapp/models/machine_model.dart';
 import 'package:hostelapp/services/auth_service.dart';
 import 'package:hostelapp/services/notice_service.dart';
-import 'package:hostelapp/services/mess_attendance_service.dart';
+import 'package:hostelapp/services/pg_attendance_service.dart';
 import 'package:hostelapp/services/machine_service.dart';
 import 'package:hostelapp/utils/app_theme.dart';
 import 'package:intl/intl.dart';
@@ -32,7 +32,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
     final authService = Provider.of<AuthService>(context);
     final user = authService.currentUserModel;
     final noticeService = Provider.of<NoticeService>(context);
-    final messService = Provider.of<MessAttendanceService>(context);
+    final pgAttendanceService = Provider.of<PgAttendanceService>(context);
     final machineService = Provider.of<MachineService>(context);
 
     return RefreshIndicator(
@@ -101,58 +101,12 @@ class _DashboardScreenState extends State<DashboardScreen> {
               ),
             ),
 
-            // Dashboard Title and Wallet
+            // Dashboard Title
             Padding(
               padding: const EdgeInsets.all(20),
-              child: Row(
-                mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                children: [
-                  const Text(
-                    'Dashboard',
-                    style: TextStyle(fontSize: 28, fontWeight: FontWeight.bold),
-                  ),
-                  Container(
-                    padding: const EdgeInsets.symmetric(
-                      horizontal: 16,
-                      vertical: 10,
-                    ),
-                    decoration: BoxDecoration(
-                      color: Colors.white,
-                      borderRadius: BorderRadius.circular(12),
-                      border: Border.all(color: Colors.grey[200]!),
-                    ),
-                    child: Row(
-                      children: [
-                        Icon(
-                          Icons.account_balance_wallet,
-                          size: 18,
-                          color: Colors.blue[700],
-                        ),
-                        const SizedBox(width: 8),
-                        Column(
-                          crossAxisAlignment: CrossAxisAlignment.start,
-                          children: [
-                            Text(
-                              'WALLET',
-                              style: TextStyle(
-                                fontSize: 9,
-                                color: Colors.grey[600],
-                                fontWeight: FontWeight.w500,
-                              ),
-                            ),
-                            const Text(
-                              '₹0',
-                              style: TextStyle(
-                                fontSize: 16,
-                                fontWeight: FontWeight.bold,
-                              ),
-                            ),
-                          ],
-                        ),
-                      ],
-                    ),
-                  ),
-                ],
+              child: const Text(
+                'Dashboard',
+                style: TextStyle(fontSize: 28, fontWeight: FontWeight.bold),
               ),
             ),
 
@@ -260,68 +214,88 @@ class _DashboardScreenState extends State<DashboardScreen> {
 
             const SizedBox(height: 20),
 
-            // Stats Row
+            // Stats Row - Real-time machine status
             Padding(
               padding: const EdgeInsets.symmetric(horizontal: 20),
-              child: Row(
-                children: [
-                  Expanded(
-                    child: _buildStatCard(
-                      'UNITS',
-                      '2',
-                      Icons.apartment_outlined,
-                      Colors.grey[100]!,
-                    ),
-                  ),
-                  const SizedBox(width: 12),
-                  Expanded(
-                    child: _buildStatCard(
-                      'BUSY',
-                      '0',
-                      Icons.pending_outlined,
-                      Colors.grey[100]!,
-                    ),
-                  ),
-                  const SizedBox(width: 12),
-                  Expanded(
-                    child: _buildStatCard(
-                      'ACTIVE',
-                      '84%',
-                      Icons.check_circle_outline,
-                      Colors.grey[100]!,
-                    ),
-                  ),
-                ],
+              child: StreamBuilder<Map<String, int>>(
+                stream: machineService.getMachineStats(
+                  user?.residenceName ?? 'Comfort PG',
+                ),
+                builder: (context, snapshot) {
+                  final stats =
+                      snapshot.data ?? {'total': 0, 'busy': 0, 'available': 0};
+                  final totalMachines = stats['total'] ?? 0;
+                  final busyMachines = stats['busy'] ?? 0;
+                  final availableMachines = stats['available'] ?? 0;
+                  final activePercent = totalMachines > 0
+                      ? ((availableMachines / totalMachines) * 100).round()
+                      : 0;
+
+                  return Row(
+                    children: [
+                      Expanded(
+                        child: _buildStatCard(
+                          'UNITS',
+                          '$totalMachines',
+                          Icons.apartment_outlined,
+                          Colors.grey[100]!,
+                        ),
+                      ),
+                      const SizedBox(width: 12),
+                      Expanded(
+                        child: _buildStatCard(
+                          'BUSY',
+                          '$busyMachines',
+                          Icons.pending_outlined,
+                          busyMachines > 0
+                              ? Colors.orange[50]!
+                              : Colors.grey[100]!,
+                        ),
+                      ),
+                      const SizedBox(width: 12),
+                      Expanded(
+                        child: _buildStatCard(
+                          'ACTIVE',
+                          '$activePercent%',
+                          Icons.check_circle_outline,
+                          availableMachines == totalMachines
+                              ? Colors.green[50]!
+                              : Colors.grey[100]!,
+                        ),
+                      ),
+                    ],
+                  );
+                },
               ),
             ),
 
             const SizedBox(height: 20),
 
-            // Mess Attendance Section (Owner View)
-            if (user?.residenceName != null)
-              Padding(
-                padding: const EdgeInsets.symmetric(horizontal: 20),
-                child: Container(
-                  padding: const EdgeInsets.all(16),
-                  decoration: BoxDecoration(
-                    gradient: const LinearGradient(
-                      colors: [Color(0xFF1a1a2e), Color(0xFF16213e)],
-                      begin: Alignment.topLeft,
-                      end: Alignment.bottomRight,
-                    ),
-                    borderRadius: BorderRadius.circular(16),
+            // PG Attendance Section (Owner View) - Real-time Today's Attendance
+            Padding(
+              padding: const EdgeInsets.symmetric(horizontal: 20),
+              child: Container(
+                padding: const EdgeInsets.all(16),
+                decoration: BoxDecoration(
+                  gradient: const LinearGradient(
+                    colors: [Color(0xFF1a1a2e), Color(0xFF16213e)],
+                    begin: Alignment.topLeft,
+                    end: Alignment.bottomRight,
                   ),
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Row(
-                        mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                        children: [
-                          Column(
+                  borderRadius: BorderRadius.circular(16),
+                ),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Row(
+                      mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                      children: [
+                        Flexible(
+                          child: Column(
                             crossAxisAlignment: CrossAxisAlignment.start,
                             children: [
                               const Text(
-                                'Mess Attendance',
+                                'PG Attendance',
                                 style: TextStyle(
                                   fontSize: 18,
                                   fontWeight: FontWeight.bold,
@@ -330,7 +304,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
                               ),
                               const SizedBox(height: 4),
                               Text(
-                                'TOMORROW • ${DateFormat('MMM dd').format(DateTime.now().add(const Duration(days: 1))).toUpperCase()}',
+                                'TODAY • ${DateFormat('MMM dd').format(DateTime.now()).toUpperCase()}',
                                 style: TextStyle(
                                   fontSize: 10,
                                   color: Colors.grey[400],
@@ -340,80 +314,170 @@ class _DashboardScreenState extends State<DashboardScreen> {
                               ),
                             ],
                           ),
-                          TextButton(
-                            onPressed: () => _showMessAttendanceDetails(
-                              context,
-                              user!.residenceName!,
-                            ),
-                            child: Text(
-                              'VIEW ALL',
-                              style: TextStyle(
-                                fontSize: 11,
-                                fontWeight: FontWeight.w600,
-                                color: Colors.blue[300],
-                              ),
-                            ),
-                          ),
-                        ],
-                      ),
-                      const SizedBox(height: 16),
-                      StreamBuilder<List<MessAttendance>>(
-                        stream: messService.getTomorrowAttendanceByResidence(
-                          user!.residenceName!,
                         ),
-                        builder: (context, snapshot) {
-                          if (!snapshot.hasData) {
-                            return const Center(
-                              child: CircularProgressIndicator(
-                                color: Colors.white,
+                        Row(
+                          mainAxisSize: MainAxisSize.min,
+                          children: [
+                            GestureDetector(
+                              onTap: () => _showSetTimeWindowDialog(
+                                context,
+                                user?.residenceName ?? 'Comfort PG',
                               ),
-                            );
-                          }
-
-                          final attendances = snapshot.data!;
-                          int breakfastCount = 0;
-                          int lunchCount = 0;
-                          int dinnerCount = 0;
-
-                          for (final a in attendances) {
-                            if (a.breakfast) breakfastCount++;
-                            if (a.lunch) lunchCount++;
-                            if (a.dinner) dinnerCount++;
-                          }
-
-                          return Row(
-                            children: [
-                              Expanded(
-                                child: _buildMealStatCard(
-                                  'BREAKFAST',
-                                  Icons.free_breakfast_outlined,
-                                  breakfastCount,
+                              child: Text(
+                                'SET TIME',
+                                style: TextStyle(
+                                  fontSize: 10,
+                                  fontWeight: FontWeight.w600,
+                                  color: Colors.green[300],
                                 ),
                               ),
-                              const SizedBox(width: 10),
-                              Expanded(
-                                child: _buildMealStatCard(
-                                  'LUNCH',
-                                  Icons.restaurant_outlined,
-                                  lunchCount,
+                            ),
+                            const SizedBox(width: 10),
+                            GestureDetector(
+                              onTap: () => _showSetPgLocationDialog(context),
+                              child: Text(
+                                'LOCATION',
+                                style: TextStyle(
+                                  fontSize: 10,
+                                  fontWeight: FontWeight.w600,
+                                  color: Colors.orange[300],
                                 ),
                               ),
-                              const SizedBox(width: 10),
-                              Expanded(
-                                child: _buildMealStatCard(
-                                  'DINNER',
-                                  Icons.dinner_dining_outlined,
-                                  dinnerCount,
+                            ),
+                            const SizedBox(width: 10),
+                            GestureDetector(
+                              onTap: () => _showPgAttendanceDetails(
+                                context,
+                                user?.residenceName ?? 'Comfort PG',
+                              ),
+                              child: Text(
+                                'VIEW',
+                                style: TextStyle(
+                                  fontSize: 10,
+                                  fontWeight: FontWeight.w600,
+                                  color: Colors.blue[300],
                                 ),
                               ),
-                            ],
-                          );
-                        },
+                            ),
+                          ],
+                        ),
+                      ],
+                    ),
+                    const SizedBox(height: 16),
+                    StreamBuilder<List<PgAttendance>>(
+                      stream: pgAttendanceService.getTodayAttendanceByResidence(
+                        user?.residenceName ?? 'Comfort PG',
                       ),
-                    ],
-                  ),
+                      builder: (context, snapshot) {
+                        final attendances = snapshot.data ?? [];
+                        final presentCount = attendances.length;
+
+                        return Row(
+                          children: [
+                            Expanded(
+                              child: Container(
+                                padding: const EdgeInsets.all(16),
+                                decoration: BoxDecoration(
+                                  color: Colors.white.withOpacity(0.1),
+                                  borderRadius: BorderRadius.circular(12),
+                                ),
+                                child: Column(
+                                  children: [
+                                    Icon(
+                                      Icons.people_outline,
+                                      color: Colors.green[300],
+                                      size: 28,
+                                    ),
+                                    const SizedBox(height: 8),
+                                    Text(
+                                      '$presentCount',
+                                      style: const TextStyle(
+                                        fontSize: 24,
+                                        fontWeight: FontWeight.bold,
+                                        color: Colors.white,
+                                      ),
+                                    ),
+                                    const SizedBox(height: 4),
+                                    Text(
+                                      'PRESENT TODAY',
+                                      style: TextStyle(
+                                        fontSize: 10,
+                                        color: Colors.grey[400],
+                                        fontWeight: FontWeight.w500,
+                                      ),
+                                    ),
+                                  ],
+                                ),
+                              ),
+                            ),
+                            const SizedBox(width: 12),
+                            Expanded(
+                              child: StreamBuilder<PgLocation?>(
+                                stream: pgAttendanceService.streamPgLocation(
+                                  user?.residenceName ?? 'Comfort PG',
+                                ),
+                                builder: (context, locationSnapshot) {
+                                  final location = locationSnapshot.data;
+                                  final hasLocation = location != null;
+                                  return Container(
+                                    padding: const EdgeInsets.all(12),
+                                    decoration: BoxDecoration(
+                                      color: Colors.white.withOpacity(0.1),
+                                      borderRadius: BorderRadius.circular(12),
+                                    ),
+                                    child: Column(
+                                      children: [
+                                        Icon(
+                                          hasLocation
+                                              ? Icons.schedule
+                                              : Icons.location_off,
+                                          color: hasLocation
+                                              ? (location.isTimeWindowEnabled
+                                                    ? Colors.green[300]
+                                                    : Colors.blue[300])
+                                              : Colors.red[300],
+                                          size: 24,
+                                        ),
+                                        const SizedBox(height: 6),
+                                        Text(
+                                          hasLocation
+                                              ? (location.isTimeWindowEnabled
+                                                    ? location
+                                                          .getTimeWindowString()
+                                                    : 'ANYTIME')
+                                              : 'NOT SET',
+                                          style: const TextStyle(
+                                            fontSize: 11,
+                                            fontWeight: FontWeight.bold,
+                                            color: Colors.white,
+                                          ),
+                                          textAlign: TextAlign.center,
+                                        ),
+                                        const SizedBox(height: 4),
+                                        Text(
+                                          hasLocation
+                                              ? 'TIME WINDOW'
+                                              : 'LOCATION',
+                                          style: TextStyle(
+                                            fontSize: 9,
+                                            color: Colors.grey[400],
+                                            fontWeight: FontWeight.w500,
+                                          ),
+                                        ),
+                                      ],
+                                    ),
+                                  );
+                                },
+                              ),
+                            ),
+                          ],
+                        );
+                      },
+                    ),
+                  ],
                 ),
               ),
+            ),
 
             const SizedBox(height: 20),
 
@@ -474,11 +538,9 @@ class _DashboardScreenState extends State<DashboardScreen> {
             Padding(
               padding: const EdgeInsets.symmetric(horizontal: 20),
               child: StreamBuilder<List<Machine>>(
-                stream: user?.residenceName != null
-                    ? machineService.getMachinesByResidence(
-                        user!.residenceName!,
-                      )
-                    : const Stream.empty(),
+                stream: machineService.getMachinesByResidence(
+                  user?.residenceName ?? 'Comfort PG',
+                ),
                 builder: (context, snapshot) {
                   if (snapshot.connectionState == ConnectionState.waiting) {
                     return const Center(
@@ -623,30 +685,40 @@ class _DashboardScreenState extends State<DashboardScreen> {
               width: double.infinity,
               child: ElevatedButton(
                 onPressed: () async {
-                  if (nameController.text.isNotEmpty &&
-                      user?.residenceName != null) {
-                    try {
-                      await machineService.addMachine(
-                        name: nameController.text,
-                        residenceName: user!.residenceName!,
-                      );
-                      Navigator.pop(context);
-                      ScaffoldMessenger.of(context).showSnackBar(
-                        SnackBar(
-                          content: Text(
-                            '${nameController.text} added successfully',
-                          ),
-                          backgroundColor: Colors.green[700],
+                  if (nameController.text.trim().isEmpty) {
+                    ScaffoldMessenger.of(context).showSnackBar(
+                      SnackBar(
+                        content: const Text('Please enter a machine name'),
+                        backgroundColor: Colors.orange[700],
+                      ),
+                    );
+                    return;
+                  }
+
+                  // Use default residence name if not set
+                  final residenceName = user?.residenceName ?? 'Comfort PG';
+
+                  try {
+                    await machineService.addMachine(
+                      name: nameController.text.trim(),
+                      residenceName: residenceName,
+                    );
+                    Navigator.pop(context);
+                    ScaffoldMessenger.of(context).showSnackBar(
+                      SnackBar(
+                        content: Text(
+                          '${nameController.text.trim()} added successfully',
                         ),
-                      );
-                    } catch (e) {
-                      ScaffoldMessenger.of(context).showSnackBar(
-                        SnackBar(
-                          content: Text('Error adding machine: $e'),
-                          backgroundColor: Colors.red[700],
-                        ),
-                      );
-                    }
+                        backgroundColor: Colors.green[700],
+                      ),
+                    );
+                  } catch (e) {
+                    ScaffoldMessenger.of(context).showSnackBar(
+                      SnackBar(
+                        content: Text('Error adding machine: $e'),
+                        backgroundColor: Colors.red[700],
+                      ),
+                    );
                   }
                 },
                 style: ElevatedButton.styleFrom(
@@ -1121,26 +1193,36 @@ class _DashboardScreenState extends State<DashboardScreen> {
                   fontWeight: FontWeight.w500,
                 ),
               ),
-              const Spacer(),
-              Container(
-                padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
-                decoration: BoxDecoration(
-                  color: Colors.grey[100],
-                  borderRadius: BorderRadius.circular(4),
-                ),
-                child: Row(
-                  children: [
-                    Icon(Icons.person, size: 10, color: Colors.grey[600]),
-                    const SizedBox(width: 4),
-                    Text(
-                      notice.createdByName.toUpperCase(),
-                      style: TextStyle(
-                        fontSize: 9,
-                        fontWeight: FontWeight.w600,
-                        color: Colors.grey[700],
+              const SizedBox(width: 8),
+              Flexible(
+                child: Container(
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 8,
+                    vertical: 3,
+                  ),
+                  decoration: BoxDecoration(
+                    color: Colors.grey[100],
+                    borderRadius: BorderRadius.circular(4),
+                  ),
+                  child: Row(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      Icon(Icons.person, size: 10, color: Colors.grey[600]),
+                      const SizedBox(width: 4),
+                      Flexible(
+                        child: Text(
+                          notice.createdByName.toUpperCase(),
+                          style: TextStyle(
+                            fontSize: 9,
+                            fontWeight: FontWeight.w600,
+                            color: Colors.grey[700],
+                          ),
+                          overflow: TextOverflow.ellipsis,
+                          maxLines: 1,
+                        ),
                       ),
-                    ),
-                  ],
+                    ],
+                  ),
                 ),
               ),
               // Delete button for owner/admin
@@ -1153,7 +1235,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
                     size: 18,
                     color: Colors.red[400],
                   ),
-                  padding: EdgeInsets.zero,
+                  padding: const EdgeInsets.only(left: 8),
                   constraints: const BoxConstraints(),
                 ),
             ],
@@ -1358,43 +1440,501 @@ class _DashboardScreenState extends State<DashboardScreen> {
     );
   }
 
-  Widget _buildMealStatCard(String label, IconData icon, int count) {
-    return Container(
-      padding: const EdgeInsets.symmetric(vertical: 12),
-      decoration: BoxDecoration(
-        color: Colors.white.withOpacity(0.1),
-        borderRadius: BorderRadius.circular(12),
-        border: Border.all(color: Colors.white.withOpacity(0.2)),
-      ),
-      child: Column(
-        children: [
-          Icon(icon, color: Colors.amber[400], size: 22),
-          const SizedBox(height: 6),
-          Text(
-            '$count',
-            style: const TextStyle(
-              fontSize: 20,
-              fontWeight: FontWeight.bold,
-              color: Colors.white,
+  void _showSetPgLocationDialog(BuildContext context) {
+    final pgAttendanceService = Provider.of<PgAttendanceService>(
+      context,
+      listen: false,
+    );
+    final user = Provider.of<AuthService>(
+      context,
+      listen: false,
+    ).currentUserModel;
+    final residenceName = user?.residenceName ?? 'Comfort PG';
+
+    showDialog(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: const Text('Set PG Location'),
+        content: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Icon(Icons.location_on, size: 48, color: Colors.blue[400]),
+            const SizedBox(height: 16),
+            const Text(
+              'Choose how to set the PG location:',
+              textAlign: TextAlign.center,
+              style: TextStyle(fontWeight: FontWeight.w500),
             ),
+            const SizedBox(height: 8),
+            Text(
+              'Students must be within 50 meters of this location to mark attendance.',
+              textAlign: TextAlign.center,
+              style: TextStyle(fontSize: 12, color: Colors.grey[600]),
+            ),
+          ],
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context),
+            child: const Text('Cancel'),
           ),
-          const SizedBox(height: 2),
-          Text(
-            label,
-            style: TextStyle(
-              fontSize: 9,
-              fontWeight: FontWeight.w500,
-              color: Colors.grey[400],
-              letterSpacing: 0.5,
-            ),
+          TextButton(
+            onPressed: () {
+              Navigator.pop(context);
+              _showManualLocationDialog(
+                context,
+                residenceName,
+                pgAttendanceService,
+              );
+            },
+            child: const Text('Enter Manually'),
+          ),
+          ElevatedButton.icon(
+            onPressed: () async {
+              Navigator.pop(context);
+
+              // Show loading
+              ScaffoldMessenger.of(context).showSnackBar(
+                const SnackBar(
+                  content: Row(
+                    children: [
+                      SizedBox(
+                        width: 20,
+                        height: 20,
+                        child: CircularProgressIndicator(
+                          strokeWidth: 2,
+                          color: Colors.white,
+                        ),
+                      ),
+                      SizedBox(width: 12),
+                      Text('Getting your location...'),
+                    ],
+                  ),
+                  duration: Duration(seconds: 30),
+                ),
+              );
+
+              final result = await pgAttendanceService
+                  .getCurrentLocationWithError();
+
+              // Hide loading snackbar
+              if (context.mounted) {
+                ScaffoldMessenger.of(context).hideCurrentSnackBar();
+              }
+
+              if (result.position == null) {
+                if (context.mounted) {
+                  ScaffoldMessenger.of(context).showSnackBar(
+                    SnackBar(
+                      content: Text(result.error ?? 'Unable to get location'),
+                      backgroundColor: Colors.red[700],
+                      duration: const Duration(seconds: 5),
+                    ),
+                  );
+                }
+                return;
+              }
+
+              await pgAttendanceService.setPgLocation(
+                residenceName: residenceName,
+                latitude: result.position!.latitude,
+                longitude: result.position!.longitude,
+                radiusMeters: 50,
+              );
+
+              if (context.mounted) {
+                ScaffoldMessenger.of(context).showSnackBar(
+                  SnackBar(
+                    content: Text(
+                      'PG location set! (${result.position!.latitude.toStringAsFixed(4)}, ${result.position!.longitude.toStringAsFixed(4)})',
+                    ),
+                    backgroundColor: Colors.green[700],
+                  ),
+                );
+              }
+            },
+            icon: const Icon(Icons.my_location, size: 18),
+            label: const Text('Use Current'),
           ),
         ],
       ),
     );
   }
 
-  void _showMessAttendanceDetails(BuildContext context, String residenceName) {
-    final messService = Provider.of<MessAttendanceService>(
+  void _showManualLocationDialog(
+    BuildContext context,
+    String residenceName,
+    PgAttendanceService pgAttendanceService,
+  ) {
+    final latController = TextEditingController();
+    final lngController = TextEditingController();
+    final radiusController = TextEditingController(text: '50');
+    final formKey = GlobalKey<FormState>();
+
+    showDialog(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: const Text('Enter Location'),
+        content: SizedBox(
+          width: double.maxFinite,
+          child: Form(
+            key: formKey,
+            child: SingleChildScrollView(
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  Text(
+                    'Enter the PG coordinates. You can find these from Google Maps.',
+                    style: TextStyle(fontSize: 12, color: Colors.grey[600]),
+                  ),
+                  const SizedBox(height: 16),
+                  TextFormField(
+                    controller: latController,
+                    keyboardType: const TextInputType.numberWithOptions(
+                      decimal: true,
+                      signed: true,
+                    ),
+                    decoration: const InputDecoration(
+                      labelText: 'Latitude',
+                      hintText: 'e.g., 12.9716',
+                      border: OutlineInputBorder(),
+                      prefixIcon: Icon(Icons.north),
+                      isDense: true,
+                    ),
+                    validator: (value) {
+                      if (value == null || value.isEmpty) {
+                        return 'Please enter latitude';
+                      }
+                      final lat = double.tryParse(value);
+                      if (lat == null || lat < -90 || lat > 90) {
+                        return 'Enter valid latitude (-90 to 90)';
+                      }
+                      return null;
+                    },
+                  ),
+                  const SizedBox(height: 12),
+                  TextFormField(
+                    controller: lngController,
+                    keyboardType: const TextInputType.numberWithOptions(
+                      decimal: true,
+                      signed: true,
+                    ),
+                    decoration: const InputDecoration(
+                      labelText: 'Longitude',
+                      hintText: 'e.g., 77.5946',
+                      border: OutlineInputBorder(),
+                      prefixIcon: Icon(Icons.east),
+                      isDense: true,
+                    ),
+                    validator: (value) {
+                      if (value == null || value.isEmpty) {
+                        return 'Please enter longitude';
+                      }
+                      final lng = double.tryParse(value);
+                      if (lng == null || lng < -180 || lng > 180) {
+                        return 'Enter valid longitude (-180 to 180)';
+                      }
+                      return null;
+                    },
+                  ),
+                  const SizedBox(height: 12),
+                  TextFormField(
+                    controller: radiusController,
+                    keyboardType: TextInputType.number,
+                    decoration: const InputDecoration(
+                      labelText: 'Radius (meters)',
+                      hintText: 'Default: 50m',
+                      border: OutlineInputBorder(),
+                      prefixIcon: Icon(Icons.radar),
+                      isDense: true,
+                    ),
+                    validator: (value) {
+                      if (value == null || value.isEmpty) {
+                        return 'Please enter radius';
+                      }
+                      final radius = int.tryParse(value);
+                      if (radius == null || radius < 10 || radius > 500) {
+                        return 'Enter radius between 10-500m';
+                      }
+                      return null;
+                    },
+                  ),
+                  const SizedBox(height: 12),
+                  Container(
+                    padding: const EdgeInsets.all(10),
+                    decoration: BoxDecoration(
+                      color: Colors.blue[50],
+                      borderRadius: BorderRadius.circular(8),
+                      border: Border.all(color: Colors.blue[200]!),
+                    ),
+                    child: Row(
+                      children: [
+                        Icon(
+                          Icons.info_outline,
+                          size: 16,
+                          color: Colors.blue[700],
+                        ),
+                        const SizedBox(width: 8),
+                        Expanded(
+                          child: Text(
+                            'Tip: Get coordinates from Google Maps',
+                            style: TextStyle(
+                              fontSize: 11,
+                              color: Colors.blue[700],
+                            ),
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context),
+            child: const Text('Cancel'),
+          ),
+          ElevatedButton(
+            onPressed: () async {
+              if (!formKey.currentState!.validate()) return;
+
+              final lat = double.parse(latController.text);
+              final lng = double.parse(lngController.text);
+              final radius = int.parse(radiusController.text);
+
+              Navigator.pop(context);
+
+              await pgAttendanceService.setPgLocation(
+                residenceName: residenceName,
+                latitude: lat,
+                longitude: lng,
+                radiusMeters: radius,
+              );
+
+              if (context.mounted) {
+                ScaffoldMessenger.of(context).showSnackBar(
+                  SnackBar(
+                    content: const Text('PG location set successfully!'),
+                    backgroundColor: Colors.green[700],
+                  ),
+                );
+              }
+            },
+            child: const Text('Save Location'),
+          ),
+        ],
+      ),
+    );
+  }
+
+  void _showSetTimeWindowDialog(BuildContext context, String residenceName) {
+    final pgAttendanceService = Provider.of<PgAttendanceService>(
+      context,
+      listen: false,
+    );
+
+    // State variables for the dialog
+    TimeOfDay startTime = const TimeOfDay(hour: 22, minute: 0); // 10 PM
+    TimeOfDay endTime = const TimeOfDay(hour: 0, minute: 0); // 12 AM
+    bool isEnabled = false;
+
+    // Load existing settings
+    pgAttendanceService.getPgLocation(residenceName).then((location) {
+      if (location != null) {
+        startTime = TimeOfDay(
+          hour: location.startHour,
+          minute: location.startMinute,
+        );
+        endTime = TimeOfDay(hour: location.endHour, minute: location.endMinute);
+        isEnabled = location.isTimeWindowEnabled;
+      }
+    });
+
+    showDialog(
+      context: context,
+      builder: (context) => StatefulBuilder(
+        builder: (context, setState) => AlertDialog(
+          title: const Text('Attendance Time Window'),
+          content: SizedBox(
+            width: double.maxFinite,
+            child: SingleChildScrollView(
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  // Enable/Disable Toggle
+                  SwitchListTile(
+                    title: const Text('Enable Time Restriction'),
+                    subtitle: Text(
+                      isEnabled
+                          ? 'Students can only mark attendance during set hours'
+                          : 'Students can mark attendance anytime',
+                      style: const TextStyle(fontSize: 12),
+                    ),
+                    value: isEnabled,
+                    onChanged: (value) => setState(() => isEnabled = value),
+                    contentPadding: EdgeInsets.zero,
+                  ),
+                  const Divider(),
+                  const SizedBox(height: 8),
+
+                  // Start Time
+                  ListTile(
+                    contentPadding: EdgeInsets.zero,
+                    leading: Icon(Icons.access_time, color: Colors.green[600]),
+                    title: const Text('Start Time'),
+                    subtitle: Text(
+                      startTime.format(context),
+                      style: TextStyle(
+                        fontSize: 18,
+                        fontWeight: FontWeight.bold,
+                        color: isEnabled ? Colors.black : Colors.grey,
+                      ),
+                    ),
+                    trailing: TextButton(
+                      onPressed: isEnabled
+                          ? () async {
+                              final picked = await showTimePicker(
+                                context: context,
+                                initialTime: startTime,
+                              );
+                              if (picked != null) {
+                                setState(() => startTime = picked);
+                              }
+                            }
+                          : null,
+                      child: const Text('CHANGE'),
+                    ),
+                  ),
+
+                  // End Time
+                  ListTile(
+                    contentPadding: EdgeInsets.zero,
+                    leading: Icon(
+                      Icons.access_time_filled,
+                      color: Colors.red[600],
+                    ),
+                    title: const Text('End Time'),
+                    subtitle: Text(
+                      endTime.format(context),
+                      style: TextStyle(
+                        fontSize: 18,
+                        fontWeight: FontWeight.bold,
+                        color: isEnabled ? Colors.black : Colors.grey,
+                      ),
+                    ),
+                    trailing: TextButton(
+                      onPressed: isEnabled
+                          ? () async {
+                              final picked = await showTimePicker(
+                                context: context,
+                                initialTime: endTime,
+                              );
+                              if (picked != null) {
+                                setState(() => endTime = picked);
+                              }
+                            }
+                          : null,
+                      child: const Text('CHANGE'),
+                    ),
+                  ),
+
+                  const SizedBox(height: 12),
+                  Container(
+                    padding: const EdgeInsets.all(12),
+                    decoration: BoxDecoration(
+                      color: isEnabled ? Colors.amber[50] : Colors.grey[100],
+                      borderRadius: BorderRadius.circular(8),
+                      border: Border.all(
+                        color: isEnabled
+                            ? Colors.amber[300]!
+                            : Colors.grey[300]!,
+                      ),
+                    ),
+                    child: Row(
+                      children: [
+                        Icon(
+                          Icons.info_outline,
+                          size: 18,
+                          color: isEnabled
+                              ? Colors.amber[800]
+                              : Colors.grey[600],
+                        ),
+                        const SizedBox(width: 8),
+                        Expanded(
+                          child: Text(
+                            isEnabled
+                                ? 'Window: ${startTime.format(context)} to ${endTime.format(context)}'
+                                : 'Time restriction is disabled',
+                            style: TextStyle(
+                              fontSize: 12,
+                              color: isEnabled
+                                  ? Colors.amber[800]
+                                  : Colors.grey[600],
+                            ),
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.pop(context),
+              child: const Text('Cancel'),
+            ),
+            ElevatedButton(
+              onPressed: () async {
+                Navigator.pop(context);
+
+                try {
+                  await pgAttendanceService.updateTimeWindow(
+                    residenceName: residenceName,
+                    startHour: startTime.hour,
+                    startMinute: startTime.minute,
+                    endHour: endTime.hour,
+                    endMinute: endTime.minute,
+                    isEnabled: isEnabled,
+                  );
+
+                  if (context.mounted) {
+                    ScaffoldMessenger.of(context).showSnackBar(
+                      SnackBar(
+                        content: Text(
+                          isEnabled
+                              ? 'Time window set: ${startTime.format(context)} - ${endTime.format(context)}'
+                              : 'Time restriction disabled',
+                        ),
+                        backgroundColor: Colors.green[700],
+                      ),
+                    );
+                  }
+                } catch (e) {
+                  if (context.mounted) {
+                    ScaffoldMessenger.of(context).showSnackBar(
+                      SnackBar(
+                        content: Text('Error: Please set PG location first'),
+                        backgroundColor: Colors.red[700],
+                      ),
+                    );
+                  }
+                }
+              },
+              child: const Text('Save'),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  void _showPgAttendanceDetails(BuildContext context, String residenceName) {
+    final pgAttendanceService = Provider.of<PgAttendanceService>(
       context,
       listen: false,
     );
@@ -1434,7 +1974,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
                         const Text(
-                          'Mess Attendance',
+                          'PG Attendance',
                           style: TextStyle(
                             fontSize: 22,
                             fontWeight: FontWeight.bold,
@@ -1442,7 +1982,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
                         ),
                         const SizedBox(height: 4),
                         Text(
-                          'Tomorrow • ${DateFormat('MMM dd, yyyy').format(DateTime.now().add(const Duration(days: 1)))}',
+                          'Today • ${DateFormat('MMM dd, yyyy').format(DateTime.now())}',
                           style: TextStyle(
                             fontSize: 13,
                             color: Colors.grey[600],
@@ -1460,16 +2000,12 @@ class _DashboardScreenState extends State<DashboardScreen> {
               const Divider(height: 1),
               // Student List
               Expanded(
-                child: StreamBuilder<List<MessAttendance>>(
-                  stream: messService.getTomorrowAttendanceByResidence(
+                child: StreamBuilder<List<PgAttendance>>(
+                  stream: pgAttendanceService.getTodayAttendanceByResidence(
                     residenceName,
                   ),
                   builder: (context, snapshot) {
-                    if (!snapshot.hasData) {
-                      return const Center(child: CircularProgressIndicator());
-                    }
-
-                    final attendances = snapshot.data!;
+                    final attendances = snapshot.data ?? [];
 
                     if (attendances.isEmpty) {
                       return Center(
@@ -1477,7 +2013,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
                           mainAxisAlignment: MainAxisAlignment.center,
                           children: [
                             Icon(
-                              Icons.restaurant_menu,
+                              Icons.people_outline,
                               size: 64,
                               color: Colors.grey[300],
                             ),
@@ -1518,7 +2054,20 @@ class _DashboardScreenState extends State<DashboardScreen> {
                           ),
                           child: Row(
                             children: [
-                              // User Info
+                              Container(
+                                width: 40,
+                                height: 40,
+                                decoration: BoxDecoration(
+                                  color: Colors.green[100],
+                                  borderRadius: BorderRadius.circular(10),
+                                ),
+                                child: Icon(
+                                  Icons.check,
+                                  color: Colors.green[700],
+                                  size: 20,
+                                ),
+                              ),
+                              const SizedBox(width: 12),
                               Expanded(
                                 child: Column(
                                   crossAxisAlignment: CrossAxisAlignment.start,
@@ -1541,17 +2090,28 @@ class _DashboardScreenState extends State<DashboardScreen> {
                                   ],
                                 ),
                               ),
-                              // Meal Status
-                              Row(
+                              Column(
+                                crossAxisAlignment: CrossAxisAlignment.end,
                                 children: [
-                                  _buildMealStatusChip(
-                                    'B',
-                                    attendance.breakfast,
+                                  Text(
+                                    DateFormat(
+                                      'h:mm a',
+                                    ).format(attendance.markedAt),
+                                    style: TextStyle(
+                                      fontSize: 12,
+                                      fontWeight: FontWeight.w600,
+                                      color: Colors.grey[700],
+                                    ),
                                   ),
-                                  const SizedBox(width: 6),
-                                  _buildMealStatusChip('L', attendance.lunch),
-                                  const SizedBox(width: 6),
-                                  _buildMealStatusChip('D', attendance.dinner),
+                                  const SizedBox(height: 2),
+                                  Text(
+                                    'PRESENT',
+                                    style: TextStyle(
+                                      fontSize: 10,
+                                      fontWeight: FontWeight.w600,
+                                      color: Colors.green[600],
+                                    ),
+                                  ),
                                 ],
                               ),
                             ],
@@ -1563,28 +2123,6 @@ class _DashboardScreenState extends State<DashboardScreen> {
                 ),
               ),
             ],
-          ),
-        ),
-      ),
-    );
-  }
-
-  Widget _buildMealStatusChip(String label, bool isIn) {
-    return Container(
-      width: 32,
-      height: 32,
-      decoration: BoxDecoration(
-        color: isIn ? Colors.green[100] : Colors.red[50],
-        borderRadius: BorderRadius.circular(8),
-        border: Border.all(color: isIn ? Colors.green[300]! : Colors.red[200]!),
-      ),
-      child: Center(
-        child: Text(
-          label,
-          style: TextStyle(
-            fontSize: 12,
-            fontWeight: FontWeight.w600,
-            color: isIn ? Colors.green[700] : Colors.red[400],
           ),
         ),
       ),

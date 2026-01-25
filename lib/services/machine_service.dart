@@ -111,13 +111,15 @@ class MachineService extends ChangeNotifier {
     return _firestore
         .collection(_collection)
         .where('residenceName', isEqualTo: residenceName)
-        .orderBy('createdAt')
         .snapshots()
-        .map(
-          (snapshot) => snapshot.docs
+        .map((snapshot) {
+          final machines = snapshot.docs
               .map((doc) => Machine.fromMap(doc.data(), doc.id))
-              .toList(),
-        );
+              .toList();
+          // Sort by createdAt locally to avoid composite index requirement
+          machines.sort((a, b) => a.createdAt.compareTo(b.createdAt));
+          return machines;
+        });
   }
 
   /// Stream a single machine

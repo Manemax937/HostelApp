@@ -13,8 +13,8 @@ class StudentAccountScreen extends StatelessWidget {
 
     final userName = user?.fullName ?? 'Student User';
     final initial = userName.isNotEmpty ? userName[0].toUpperCase() : 'S';
-    final userId = 'U2'; // Would come from user model
-    final roomNumber = 'B-204'; // Would come from user model
+    final userId = user?.uid.substring(0, 6).toUpperCase() ?? 'N/A';
+    final roomNumber = user?.roomNo ?? 'N/A';
 
     return SingleChildScrollView(
       child: Padding(
@@ -230,7 +230,7 @@ class StudentAccountScreen extends StatelessWidget {
                             crossAxisAlignment: CrossAxisAlignment.start,
                             children: [
                               Text(
-                                'ROOM',
+                                'ROOM NO',
                                 style: TextStyle(
                                   fontSize: 10,
                                   fontWeight: FontWeight.w500,
@@ -259,103 +259,41 @@ class StudentAccountScreen extends StatelessWidget {
 
             const SizedBox(height: 16),
 
-            // Preferences and Sign Out Buttons Row
-            Row(
-              children: [
-                // Preferences Button
-                Expanded(
-                  child: ElevatedButton.icon(
-                    onPressed: () {
-                      // Open preferences
-                    },
-                    icon: const Icon(Icons.settings_outlined, size: 18),
-                    label: const Text(
-                      'PREFERENCES',
-                      style: TextStyle(
-                        fontSize: 12,
-                        fontWeight: FontWeight.w600,
-                      ),
-                    ),
-                    style: ElevatedButton.styleFrom(
-                      backgroundColor: const Color(0xFF1a1a2e),
-                      foregroundColor: Colors.white,
-                      padding: const EdgeInsets.symmetric(vertical: 16),
-                      shape: RoundedRectangleBorder(
-                        borderRadius: BorderRadius.circular(10),
-                      ),
-                      elevation: 0,
-                    ),
-                  ),
-                ),
-                const SizedBox(width: 12),
-                // Sign Out Button
-                Expanded(
-                  child: OutlinedButton.icon(
-                    onPressed: () async {
-                      final confirm = await showDialog<bool>(
-                        context: context,
-                        builder: (context) => AlertDialog(
-                          title: const Text('Sign Out'),
-                          content: const Text(
-                            'Are you sure you want to sign out?',
-                          ),
-                          actions: [
-                            TextButton(
-                              onPressed: () => Navigator.pop(context, false),
-                              child: const Text('Cancel'),
-                            ),
-                            TextButton(
-                              onPressed: () => Navigator.pop(context, true),
-                              child: const Text('Sign Out'),
-                            ),
-                          ],
-                        ),
-                      );
-                      if (confirm == true) {
-                        await authService.signOut();
-                      }
-                    },
-                    icon: Icon(Icons.logout, size: 18, color: Colors.grey[700]),
-                    label: Text(
-                      'SIGN OUT',
-                      style: TextStyle(
-                        fontSize: 12,
-                        fontWeight: FontWeight.w600,
-                        color: Colors.grey[700],
-                      ),
-                    ),
-                    style: OutlinedButton.styleFrom(
-                      padding: const EdgeInsets.symmetric(vertical: 16),
-                      shape: RoundedRectangleBorder(
-                        borderRadius: BorderRadius.circular(10),
-                      ),
-                      side: BorderSide(color: Colors.grey[300]!),
-                    ),
-                  ),
-                ),
-              ],
-            ),
-
-            const SizedBox(height: 12),
-
-            // Request Transfer Button
+            // Sign Out Button
             SizedBox(
               width: double.infinity,
               child: OutlinedButton.icon(
-                onPressed: () {
-                  _showTransferRequestSheet(context);
+                onPressed: () async {
+                  final confirm = await showDialog<bool>(
+                    context: context,
+                    builder: (context) => AlertDialog(
+                      title: const Text('Sign Out'),
+                      content: const Text(
+                        'Are you sure you want to sign out?',
+                      ),
+                      actions: [
+                        TextButton(
+                          onPressed: () => Navigator.pop(context, false),
+                          child: const Text('Cancel'),
+                        ),
+                        TextButton(
+                          onPressed: () => Navigator.pop(context, true),
+                          child: const Text('Sign Out'),
+                        ),
+                      ],
+                    ),
+                  );
+                  if (confirm == true) {
+                    await authService.signOut();
+                  }
                 },
-                icon: Icon(
-                  Icons.location_on_outlined,
-                  size: 18,
-                  color: Colors.blue[700],
-                ),
+                icon: Icon(Icons.logout, size: 18, color: Colors.grey[700]),
                 label: Text(
-                  'REQUEST TRANSFER',
+                  'SIGN OUT',
                   style: TextStyle(
                     fontSize: 12,
                     fontWeight: FontWeight.w600,
-                    color: Colors.blue[700],
+                    color: Colors.grey[700],
                   ),
                 ),
                 style: OutlinedButton.styleFrom(
@@ -363,8 +301,7 @@ class StudentAccountScreen extends StatelessWidget {
                   shape: RoundedRectangleBorder(
                     borderRadius: BorderRadius.circular(10),
                   ),
-                  side: BorderSide(color: Colors.blue[100]!),
-                  backgroundColor: Colors.blue[50],
+                  side: BorderSide(color: Colors.grey[300]!),
                 ),
               ),
             ),
@@ -420,100 +357,6 @@ class StudentAccountScreen extends StatelessWidget {
             ),
 
             const SizedBox(height: 20),
-          ],
-        ),
-      ),
-    );
-  }
-
-  void _showTransferRequestSheet(BuildContext context) {
-    showModalBottomSheet(
-      context: context,
-      isScrollControlled: true,
-      backgroundColor: Colors.transparent,
-      builder: (context) => Container(
-        padding: const EdgeInsets.all(24),
-        decoration: const BoxDecoration(
-          color: Colors.white,
-          borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
-        ),
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Row(
-              mainAxisAlignment: MainAxisAlignment.spaceBetween,
-              children: [
-                const Text(
-                  'Request Transfer',
-                  style: TextStyle(fontSize: 22, fontWeight: FontWeight.bold),
-                ),
-                GestureDetector(
-                  onTap: () => Navigator.pop(context),
-                  child: Container(
-                    padding: const EdgeInsets.all(8),
-                    decoration: BoxDecoration(
-                      color: Colors.grey[100],
-                      shape: BoxShape.circle,
-                    ),
-                    child: Icon(Icons.close, color: Colors.grey[600], size: 20),
-                  ),
-                ),
-              ],
-            ),
-            const SizedBox(height: 20),
-            Text(
-              'Select preferred room/floor for transfer',
-              style: TextStyle(fontSize: 14, color: Colors.grey[600]),
-            ),
-            const SizedBox(height: 20),
-            // Reason TextField
-            TextField(
-              maxLines: 3,
-              decoration: InputDecoration(
-                hintText: 'Reason for transfer request...',
-                hintStyle: TextStyle(color: Colors.grey[400]),
-                filled: true,
-                fillColor: Colors.grey[50],
-                border: OutlineInputBorder(
-                  borderRadius: BorderRadius.circular(10),
-                  borderSide: BorderSide(color: Colors.grey[200]!),
-                ),
-                enabledBorder: OutlineInputBorder(
-                  borderRadius: BorderRadius.circular(10),
-                  borderSide: BorderSide(color: Colors.grey[200]!),
-                ),
-              ),
-            ),
-            const SizedBox(height: 20),
-            SizedBox(
-              width: double.infinity,
-              child: ElevatedButton(
-                onPressed: () {
-                  Navigator.pop(context);
-                  ScaffoldMessenger.of(context).showSnackBar(
-                    SnackBar(
-                      content: const Text('Transfer request submitted'),
-                      backgroundColor: Colors.green[700],
-                    ),
-                  );
-                },
-                style: ElevatedButton.styleFrom(
-                  backgroundColor: const Color(0xFF1a1a2e),
-                  foregroundColor: Colors.white,
-                  padding: const EdgeInsets.symmetric(vertical: 16),
-                  shape: RoundedRectangleBorder(
-                    borderRadius: BorderRadius.circular(10),
-                  ),
-                  elevation: 0,
-                ),
-                child: const Text(
-                  'SUBMIT REQUEST',
-                  style: TextStyle(fontSize: 13, fontWeight: FontWeight.w600),
-                ),
-              ),
-            ),
-            const SizedBox(height: 16),
           ],
         ),
       ),

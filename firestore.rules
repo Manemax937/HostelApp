@@ -49,11 +49,35 @@ service cloud.firestore {
       allow delete: if isAdminOrOwner();
     }
     
-    // Washing machines collection
+    // Washing machines collection (legacy)
     match /washing_machines/{machineId} {
       allow read: if isSignedIn();
       allow create: if isSignedIn();
       allow update: if isSignedIn();
+      allow delete: if isAdminOrOwner();
+    }
+    
+    // Machines collection
+    match /machines/{machineId} {
+      allow read: if isSignedIn();
+      allow create: if isAdminOrOwner();
+      allow update: if isSignedIn();
+      allow delete: if isAdminOrOwner();
+    }
+    
+    // PG Attendance collection
+    match /pg_attendance/{attendanceId} {
+      allow read: if isSignedIn();
+      allow create: if isSignedIn();
+      allow update: if isSignedIn();
+      allow delete: if isAdminOrOwner();
+    }
+    
+    // PG Locations collection
+    match /pg_locations/{locationId} {
+      allow read: if isSignedIn();
+      allow create: if isAdminOrOwner();
+      allow update: if isAdminOrOwner();
       allow delete: if isAdminOrOwner();
     }
     
@@ -70,6 +94,22 @@ service cloud.firestore {
       allow read: if isSignedIn();
       allow create: if isAdminOrOwner();
       allow update: if isAdminOrOwner();
+      allow delete: if isAdminOrOwner();
+    }
+    
+    // Rent Dues collection
+    match /rentDues/{rentDueId} {
+      allow read: if isSignedIn();
+      allow create: if isAdminOrOwner();
+      allow update: if isSignedIn(); // Students can update to link payment
+      allow delete: if isAdminOrOwner();
+    }
+
+    // Notifications collection
+    match /notifications/{notificationId} {
+      allow read: if isSignedIn();
+      allow create: if isSignedIn();
+      allow update: if isSignedIn(); // Users can mark as read
       allow delete: if isAdminOrOwner();
     }
   }

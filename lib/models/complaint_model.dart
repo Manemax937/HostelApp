@@ -9,6 +9,7 @@ class ComplaintModel {
   final String userId;
   final String userName;
   final String roomNo;
+  final String residenceName;
   final ComplaintCategory category;
   final String description;
   final String? photoUrl;
@@ -22,6 +23,7 @@ class ComplaintModel {
     required this.userId,
     required this.userName,
     required this.roomNo,
+    required this.residenceName,
     required this.category,
     required this.description,
     this.photoUrl,
@@ -37,6 +39,7 @@ class ComplaintModel {
       userId: map['userId'] ?? '',
       userName: map['userName'] ?? '',
       roomNo: map['roomNo'] ?? '',
+      residenceName: map['residenceName'] ?? '',
       category: ComplaintCategory.values.firstWhere(
         (e) => e.toString() == 'ComplaintCategory.${map['category']}',
         orElse: () => ComplaintCategory.other,
@@ -60,6 +63,7 @@ class ComplaintModel {
       'userId': userId,
       'userName': userName,
       'roomNo': roomNo,
+      'residenceName': residenceName,
       'category': category.toString().split('.').last,
       'description': description,
       'photoUrl': photoUrl,
@@ -92,6 +96,7 @@ class ComplaintModel {
     String? userId,
     String? userName,
     String? roomNo,
+    String? residenceName,
     ComplaintCategory? category,
     String? description,
     String? photoUrl,
@@ -105,6 +110,7 @@ class ComplaintModel {
       userId: userId ?? this.userId,
       userName: userName ?? this.userName,
       roomNo: roomNo ?? this.roomNo,
+      residenceName: residenceName ?? this.residenceName,
       category: category ?? this.category,
       description: description ?? this.description,
       photoUrl: photoUrl ?? this.photoUrl,

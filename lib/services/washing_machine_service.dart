@@ -1,6 +1,7 @@
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:flutter/foundation.dart';
 import 'package:hostelapp/models/washing_machine_model.dart';
+import 'package:hostelapp/services/notification_service.dart';
 import 'package:hostelapp/utils/app_constants.dart';
 
 class WashingMachineService extends ChangeNotifier {
@@ -39,14 +40,36 @@ class WashingMachineService extends ChangeNotifier {
         .collection(AppConstants.washingMachinesCollection)
         .add(session.toMap());
 
+    // Send notification for machine booking
+    await NotificationService().sendMachineBookingNotification(
+      machineName: 'Machine $machineId',
+      slotTime: 'Now',
+      userId: userId,
+    );
+
     notifyListeners();
   }
 
   Future<void> endSession(String sessionId) async {
+    // Get session details first
+    final sessionDoc = await _firestore
+        .collection(AppConstants.washingMachinesCollection)
+        .doc(sessionId)
+        .get();
+    
+    final sessionData = sessionDoc.data();
+    
     await _firestore
         .collection(AppConstants.washingMachinesCollection)
         .doc(sessionId)
         .update({'endTime': Timestamp.now(), 'status': 'free'});
+
+    // Send notification that machine is available
+    if (sessionData != null) {
+      await NotificationService().sendMachineAvailableNotification(
+        machineName: 'Machine ${sessionData['machineId']}',
+      );
+    }
 
     notifyListeners();
   }

@@ -14,7 +14,8 @@ class AppConstants {
   static const String complaintsCollection = 'complaints';
   static const String housekeepingCollection = 'housekeeping_logs';
   static const String notificationsCollection = 'notifications';
-  static const String messAttendanceCollection = 'mess_attendance';
+  static const String pgAttendanceCollection = 'pg_attendance';
+  static const String pgLocationsCollection = 'pg_locations';
   static const String noticesCollection = 'notices';
 
   // Storage Paths

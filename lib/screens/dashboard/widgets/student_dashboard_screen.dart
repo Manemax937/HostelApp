@@ -1,11 +1,11 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import 'package:hostelapp/models/notice_model.dart';
-import 'package:hostelapp/models/mess_attendance_model.dart';
+import 'package:hostelapp/models/pg_attendance_model.dart';
 import 'package:hostelapp/models/machine_model.dart';
 import 'package:hostelapp/services/auth_service.dart';
 import 'package:hostelapp/services/notice_service.dart';
-import 'package:hostelapp/services/mess_attendance_service.dart';
+import 'package:hostelapp/services/pg_attendance_service.dart';
 import 'package:hostelapp/services/machine_service.dart';
 import 'package:intl/intl.dart';
 
@@ -19,6 +19,7 @@ class StudentDashboardScreen extends StatefulWidget {
 class _StudentDashboardScreenState extends State<StudentDashboardScreen> {
   final GlobalKey<RefreshIndicatorState> _refreshKey =
       GlobalKey<RefreshIndicatorState>();
+  bool _isMarkingAttendance = false;
 
   Future<void> _onRefresh() async {
     // Trigger a rebuild by calling setState
@@ -32,7 +33,7 @@ class _StudentDashboardScreenState extends State<StudentDashboardScreen> {
     final authService = Provider.of<AuthService>(context);
     final user = authService.currentUserModel;
     final noticeService = Provider.of<NoticeService>(context);
-    final messService = Provider.of<MessAttendanceService>(context);
+    final pgAttendanceService = Provider.of<PgAttendanceService>(context);
     final machineService = Provider.of<MachineService>(context);
 
     return RefreshIndicator(
@@ -163,7 +164,7 @@ class _StudentDashboardScreenState extends State<StudentDashboardScreen> {
 
             const SizedBox(height: 20),
 
-            // Mess Attendance Card
+            // PG Attendance Card
             if (user != null)
               Padding(
                 padding: const EdgeInsets.symmetric(horizontal: 20),
@@ -177,14 +178,13 @@ class _StudentDashboardScreenState extends State<StudentDashboardScreen> {
                     ),
                     borderRadius: BorderRadius.circular(16),
                   ),
-                  child: StreamBuilder<MessAttendance?>(
-                    stream: messService.getUserTomorrowAttendance(user.uid),
+                  child: StreamBuilder<PgAttendance?>(
+                    stream: pgAttendanceService.getUserTodayAttendance(
+                      user.uid,
+                    ),
                     builder: (context, snapshot) {
-                      // Default to all meals attending if no record yet
+                      final hasMarkedToday = snapshot.data != null;
                       final attendance = snapshot.data;
-                      final breakfastIn = attendance?.breakfast ?? true;
-                      final lunchIn = attendance?.lunch ?? true;
-                      final dinnerIn = attendance?.dinner ?? true;
 
                       return Column(
                         crossAxisAlignment: CrossAxisAlignment.start,
@@ -197,7 +197,7 @@ class _StudentDashboardScreenState extends State<StudentDashboardScreen> {
                                 crossAxisAlignment: CrossAxisAlignment.start,
                                 children: [
                                   const Text(
-                                    'Mess Attendance',
+                                    'PG Attendance',
                                     style: TextStyle(
                                       fontSize: 20,
                                       fontWeight: FontWeight.bold,
@@ -206,7 +206,7 @@ class _StudentDashboardScreenState extends State<StudentDashboardScreen> {
                                   ),
                                   const SizedBox(height: 4),
                                   Text(
-                                    'TOMORROW • ${DateFormat('MMM dd').format(DateTime.now().add(const Duration(days: 1))).toUpperCase()}',
+                                    'TODAY • ${DateFormat('MMM dd').format(DateTime.now()).toUpperCase()}',
                                     style: TextStyle(
                                       fontSize: 11,
                                       color: Colors.grey[400],
@@ -216,49 +216,88 @@ class _StudentDashboardScreenState extends State<StudentDashboardScreen> {
                                   ),
                                 ],
                               ),
-                              // Fork & Knife Icon
                               Icon(
-                                Icons.restaurant,
+                                hasMarkedToday
+                                    ? Icons.check_circle
+                                    : Icons.location_on,
                                 size: 48,
-                                color: Colors.amber[600]!.withOpacity(0.7),
+                                color: hasMarkedToday
+                                    ? Colors.green[400]!.withOpacity(0.7)
+                                    : Colors.blue[400]!.withOpacity(0.7),
                               ),
                             ],
                           ),
                           const SizedBox(height: 20),
-                          // Meal Buttons
-                          Row(
-                            children: [
-                              Expanded(
-                                child: _buildMealButton(
-                                  'BREAKFAST',
-                                  Icons.free_breakfast_outlined,
-                                  breakfastIn,
-                                  () => _toggleMeal(
-                                    MealType.breakfast,
-                                    !breakfastIn,
+                          // Status or Mark Button
+                          if (hasMarkedToday)
+                            Container(
+                              width: double.infinity,
+                              padding: const EdgeInsets.all(16),
+                              decoration: BoxDecoration(
+                                color: Colors.green.withOpacity(0.2),
+                                borderRadius: BorderRadius.circular(12),
+                                border: Border.all(
+                                  color: Colors.green.withOpacity(0.3),
+                                ),
+                              ),
+                              child: Row(
+                                mainAxisAlignment: MainAxisAlignment.center,
+                                children: [
+                                  Icon(
+                                    Icons.check_circle,
+                                    color: Colors.green[400],
+                                    size: 20,
+                                  ),
+                                  const SizedBox(width: 8),
+                                  Text(
+                                    'Marked at ${DateFormat('h:mm a').format(attendance!.markedAt)}',
+                                    style: TextStyle(
+                                      color: Colors.green[300],
+                                      fontWeight: FontWeight.w600,
+                                      fontSize: 14,
+                                    ),
+                                  ),
+                                ],
+                              ),
+                            )
+                          else
+                            SizedBox(
+                              width: double.infinity,
+                              child: ElevatedButton.icon(
+                                onPressed: _isMarkingAttendance
+                                    ? null
+                                    : () => _markAttendance(context),
+                                icon: _isMarkingAttendance
+                                    ? const SizedBox(
+                                        width: 20,
+                                        height: 20,
+                                        child: CircularProgressIndicator(
+                                          strokeWidth: 2,
+                                          color: Colors.white,
+                                        ),
+                                      )
+                                    : const Icon(Icons.location_on),
+                                label: Text(
+                                  _isMarkingAttendance
+                                      ? 'Marking...'
+                                      : 'MARK ATTENDANCE',
+                                  style: const TextStyle(
+                                    fontWeight: FontWeight.w600,
+                                    letterSpacing: 0.5,
+                                  ),
+                                ),
+                                style: ElevatedButton.styleFrom(
+                                  backgroundColor: Colors.blue[600],
+                                  foregroundColor: Colors.white,
+                                  padding: const EdgeInsets.symmetric(
+                                    vertical: 16,
+                                  ),
+                                  shape: RoundedRectangleBorder(
+                                    borderRadius: BorderRadius.circular(12),
                                   ),
                                 ),
                               ),
-                              const SizedBox(width: 10),
-                              Expanded(
-                                child: _buildMealButton(
-                                  'LUNCH',
-                                  Icons.restaurant_outlined,
-                                  lunchIn,
-                                  () => _toggleMeal(MealType.lunch, !lunchIn),
-                                ),
-                              ),
-                              const SizedBox(width: 10),
-                              Expanded(
-                                child: _buildMealButton(
-                                  'DINNER',
-                                  Icons.dinner_dining_outlined,
-                                  dinnerIn,
-                                  () => _toggleMeal(MealType.dinner, !dinnerIn),
-                                ),
-                              ),
-                            ],
-                          ),
+                            ),
                         ],
                       );
                     },
@@ -405,9 +444,9 @@ class _StudentDashboardScreenState extends State<StudentDashboardScreen> {
     );
   }
 
-  Future<void> _toggleMeal(MealType mealType, bool isAttending) async {
+  Future<void> _markAttendance(BuildContext context) async {
     final authService = Provider.of<AuthService>(context, listen: false);
-    final messService = Provider.of<MessAttendanceService>(
+    final pgAttendanceService = Provider.of<PgAttendanceService>(
       context,
       listen: false,
     );
@@ -415,71 +454,44 @@ class _StudentDashboardScreenState extends State<StudentDashboardScreen> {
 
     if (user == null) return;
 
+    setState(() {
+      _isMarkingAttendance = true;
+    });
+
     try {
-      await messService.updateMealAttendance(
+      final result = await pgAttendanceService.markAttendance(
         userId: user.uid,
         userName: user.fullName,
         roomNo: user.roomNo ?? '',
-        residenceName: user.residenceName ?? '',
-        mealType: mealType,
-        isAttending: isAttending,
+        residenceName: user.residenceName ?? 'Comfort PG',
       );
+
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text(result.message),
+            backgroundColor: result.success
+                ? Colors.green[700]
+                : Colors.red[700],
+          ),
+        );
+      }
     } catch (e) {
       if (mounted) {
-        ScaffoldMessenger.of(
-          context,
-        ).showSnackBar(SnackBar(content: Text('Failed to update: $e')));
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('Failed to mark attendance: $e'),
+            backgroundColor: Colors.red[700],
+          ),
+        );
+      }
+    } finally {
+      if (mounted) {
+        setState(() {
+          _isMarkingAttendance = false;
+        });
       }
     }
-  }
-
-  Widget _buildMealButton(
-    String label,
-    IconData icon,
-    bool isIn,
-    VoidCallback onTap,
-  ) {
-    return GestureDetector(
-      onTap: onTap,
-      child: Container(
-        padding: const EdgeInsets.symmetric(vertical: 16),
-        decoration: BoxDecoration(
-          color: isIn ? Colors.green[700] : Colors.white.withOpacity(0.1),
-          borderRadius: BorderRadius.circular(12),
-          border: Border.all(
-            color: isIn ? Colors.green[600]! : Colors.white.withOpacity(0.2),
-          ),
-        ),
-        child: Column(
-          children: [
-            Icon(
-              icon,
-              color: isIn ? Colors.white : Colors.white.withOpacity(0.7),
-              size: 24,
-            ),
-            const SizedBox(height: 8),
-            Text(
-              label,
-              style: TextStyle(
-                fontSize: 10,
-                fontWeight: FontWeight.w600,
-                color: isIn ? Colors.white : Colors.white.withOpacity(0.7),
-                letterSpacing: 0.5,
-              ),
-            ),
-            const SizedBox(height: 4),
-            Text(
-              isIn ? 'IN' : 'OUT',
-              style: TextStyle(
-                fontSize: 11,
-                fontWeight: FontWeight.w500,
-                color: isIn ? Colors.white70 : Colors.grey[500],
-              ),
-            ),
-          ],
-        ),
-      ),
-    );
   }
 
   Widget _buildNoticeCard(Notice notice) {

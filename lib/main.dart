@@ -11,7 +11,7 @@ import 'package:hostelapp/services/complaint_service.dart';
 import 'package:hostelapp/services/housekeeping_service.dart';
 import 'package:hostelapp/services/notification_service.dart';
 import 'package:hostelapp/services/notice_service.dart';
-import 'package:hostelapp/services/mess_attendance_service.dart';
+import 'package:hostelapp/services/pg_attendance_service.dart';
 import 'package:hostelapp/screens/auth/auth_screen.dart';
 import 'package:hostelapp/screens/home/home_wrapper.dart';
 import 'package:hostelapp/utils/app_theme.dart';
@@ -25,6 +25,9 @@ void main() async {
 
   // Initialize Notification Service
   await NotificationService().initialize();
+
+  // Clean up old resolved complaints (older than 24 hours)
+  ComplaintService().cleanupOldResolvedComplaints();
 
   runApp(const MyApp());
 }
@@ -43,7 +46,7 @@ class MyApp extends StatelessWidget {
         ChangeNotifierProvider(create: (_) => ComplaintService()),
         ChangeNotifierProvider(create: (_) => HousekeepingService()),
         ChangeNotifierProvider(create: (_) => NoticeService()),
-        ChangeNotifierProvider(create: (_) => MessAttendanceService()),
+        ChangeNotifierProvider(create: (_) => PgAttendanceService()),
       ],
       child: MaterialApp(
         title: AppConstants.appName,

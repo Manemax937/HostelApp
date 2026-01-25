@@ -199,64 +199,35 @@ class AccountScreen extends StatelessWidget {
                 ),
                 const SizedBox(height: 16),
 
-                // Action Buttons
-                Row(
-                  children: [
-                    Expanded(
-                      child: ElevatedButton.icon(
-                        onPressed: () {
-                          // Will implement later
-                        },
-                        icon: const Icon(Icons.settings_outlined, size: 18),
-                        label: const Text(
-                          'PREFERENCES',
-                          style: TextStyle(
-                            fontSize: 12,
-                            fontWeight: FontWeight.w600,
-                            letterSpacing: 0.5,
-                          ),
-                        ),
-                        style: ElevatedButton.styleFrom(
-                          backgroundColor: const Color(0xFF1E2A3A),
-                          foregroundColor: Colors.white,
-                          padding: const EdgeInsets.symmetric(vertical: 14),
-                          shape: RoundedRectangleBorder(
-                            borderRadius: BorderRadius.circular(10),
-                          ),
-                          elevation: 0,
-                        ),
+                // Sign Out Button
+                SizedBox(
+                  width: double.infinity,
+                  child: OutlinedButton.icon(
+                    onPressed: () async {
+                      await authService.signOut();
+                    },
+                    icon: Icon(
+                      Icons.logout_outlined,
+                      size: 18,
+                      color: Colors.grey[600],
+                    ),
+                    label: Text(
+                      'SIGN OUT',
+                      style: TextStyle(
+                        fontSize: 12,
+                        fontWeight: FontWeight.w600,
+                        color: Colors.grey[600],
+                        letterSpacing: 0.5,
                       ),
                     ),
-                    const SizedBox(width: 12),
-                    Expanded(
-                      child: OutlinedButton.icon(
-                        onPressed: () async {
-                          await authService.signOut();
-                        },
-                        icon: Icon(
-                          Icons.logout_outlined,
-                          size: 18,
-                          color: Colors.grey[600],
-                        ),
-                        label: Text(
-                          'SIGN OUT',
-                          style: TextStyle(
-                            fontSize: 12,
-                            fontWeight: FontWeight.w600,
-                            color: Colors.grey[600],
-                            letterSpacing: 0.5,
-                          ),
-                        ),
-                        style: OutlinedButton.styleFrom(
-                          padding: const EdgeInsets.symmetric(vertical: 14),
-                          shape: RoundedRectangleBorder(
-                            borderRadius: BorderRadius.circular(10),
-                          ),
-                          side: BorderSide(color: Colors.grey[300]!),
-                        ),
+                    style: OutlinedButton.styleFrom(
+                      padding: const EdgeInsets.symmetric(vertical: 14),
+                      shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(10),
                       ),
+                      side: BorderSide(color: Colors.grey[300]!),
                     ),
-                  ],
+                  ),
                 ),
                 const SizedBox(height: 24),
 

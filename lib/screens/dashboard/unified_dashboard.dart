@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import 'package:hostelapp/models/user_model.dart';
 import 'package:hostelapp/services/auth_service.dart';
+import 'package:hostelapp/services/notification_service.dart';
 import 'package:hostelapp/utils/app_theme.dart';
 
 // Import separate screen widgets - Owner screens
@@ -9,7 +10,6 @@ import 'widgets/dashboard_screen.dart';
 import 'widgets/residents_screen.dart';
 import 'widgets/finance_screen.dart';
 import 'widgets/support_screen.dart';
-import 'widgets/operations_screen.dart';
 import 'widgets/account_screen.dart';
 
 // Student specific screens
@@ -40,7 +40,6 @@ class _UnifiedDashboardState extends State<UnifiedDashboard> {
       const ResidentsScreen(),
       const FinanceScreen(),
       const SupportScreen(),
-      const OperationsScreen(),
       const AccountScreen(),
     ];
 
@@ -147,13 +146,52 @@ class _UnifiedDashboardState extends State<UnifiedDashboard> {
               ],
             ),
           ),
-          // Notification Bell
-          IconButton(
-            icon: const Icon(
-              Icons.notifications_outlined,
-              color: Colors.black87,
-            ),
-            onPressed: () {},
+          // Notification Bell with Badge
+          StreamBuilder<int>(
+            stream: isStudent
+                ? NotificationService().getUnreadCountForUser(user?.uid ?? '')
+                : NotificationService().getUnreadCountForResidence(user?.residenceName ?? ''),
+            builder: (context, snapshot) {
+              final unreadCount = snapshot.data ?? 0;
+              return Stack(
+                children: [
+                  IconButton(
+                    icon: const Icon(
+                      Icons.notifications_outlined,
+                      color: Colors.black87,
+                    ),
+                    onPressed: () {
+                      _showNotificationsSheet(context, user, isStudent);
+                    },
+                  ),
+                  if (unreadCount > 0)
+                    Positioned(
+                      right: 8,
+                      top: 8,
+                      child: Container(
+                        padding: const EdgeInsets.all(4),
+                        decoration: const BoxDecoration(
+                          color: Colors.red,
+                          shape: BoxShape.circle,
+                        ),
+                        constraints: const BoxConstraints(
+                          minWidth: 16,
+                          minHeight: 16,
+                        ),
+                        child: Text(
+                          unreadCount > 9 ? '9+' : '$unreadCount',
+                          style: const TextStyle(
+                            color: Colors.white,
+                            fontSize: 10,
+                            fontWeight: FontWeight.bold,
+                          ),
+                          textAlign: TextAlign.center,
+                        ),
+                      ),
+                    ),
+                ],
+              );
+            },
           ),
         ],
       ),
@@ -172,7 +210,7 @@ class _UnifiedDashboardState extends State<UnifiedDashboard> {
     );
   }
 
-  // Owner navigation items (6 tabs)
+  // Owner navigation items (5 tabs)
   List<BottomNavigationBarItem> get _ownerNavItems => const [
     BottomNavigationBarItem(
       icon: Icon(Icons.dashboard_outlined),
@@ -193,11 +231,6 @@ class _UnifiedDashboardState extends State<UnifiedDashboard> {
       icon: Icon(Icons.support_agent_outlined),
       activeIcon: Icon(Icons.support_agent),
       label: 'SUPPORT',
-    ),
-    BottomNavigationBarItem(
-      icon: Icon(Icons.settings_outlined),
-      activeIcon: Icon(Icons.settings),
-      label: 'OPERATIONS',
     ),
     BottomNavigationBarItem(
       icon: Icon(Icons.person_outline),
@@ -229,4 +262,205 @@ class _UnifiedDashboardState extends State<UnifiedDashboard> {
       label: 'ACCOUNT',
     ),
   ];
+
+  void _showNotificationsSheet(BuildContext context, dynamic user, bool isStudent) {
+    final notificationService = NotificationService();
+    
+    showModalBottomSheet(
+      context: context,
+      isScrollControlled: true,
+      backgroundColor: Colors.transparent,
+      builder: (context) => Container(
+        height: MediaQuery.of(context).size.height * 0.7,
+        decoration: const BoxDecoration(
+          color: Colors.white,
+          borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
+        ),
+        child: Column(
+          children: [
+            // Handle bar
+            Container(
+              margin: const EdgeInsets.only(top: 12),
+              width: 40,
+              height: 4,
+              decoration: BoxDecoration(
+                color: Colors.grey[300],
+                borderRadius: BorderRadius.circular(2),
+              ),
+            ),
+            // Header
+            Padding(
+              padding: const EdgeInsets.all(20),
+              child: Row(
+                mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                children: [
+                  const Text(
+                    'Notifications',
+                    style: TextStyle(
+                      fontSize: 20,
+                      fontWeight: FontWeight.bold,
+                    ),
+                  ),
+                  TextButton(
+                    onPressed: () => Navigator.pop(context),
+                    child: const Text('Done'),
+                  ),
+                ],
+              ),
+            ),
+            const Divider(height: 1),
+            // Notifications list
+            Expanded(
+              child: StreamBuilder<List<Map<String, dynamic>>>(
+                stream: isStudent
+                    ? notificationService.getUserNotifications(user?.uid ?? '')
+                    : notificationService.getResidenceNotifications(user?.residenceName ?? ''),
+                builder: (context, snapshot) {
+                  if (snapshot.connectionState == ConnectionState.waiting) {
+                    return const Center(child: CircularProgressIndicator());
+                  }
+
+                  if (snapshot.hasError) {
+                    return Center(
+                      child: Column(
+                        mainAxisAlignment: MainAxisAlignment.center,
+                        children: [
+                          Icon(Icons.error_outline, size: 48, color: Colors.red[300]),
+                          const SizedBox(height: 16),
+                          Text(
+                            'Error loading notifications',
+                            style: TextStyle(color: Colors.grey[500]),
+                          ),
+                        ],
+                      ),
+                    );
+                  }
+
+                  final notifications = snapshot.data ?? [];
+
+                  if (notifications.isEmpty) {
+                    return Center(
+                      child: Column(
+                        mainAxisAlignment: MainAxisAlignment.center,
+                        children: [
+                          Icon(
+                            Icons.notifications_off_outlined,
+                            size: 64,
+                            color: Colors.grey[300],
+                          ),
+                          const SizedBox(height: 16),
+                          Text(
+                            'No notifications yet',
+                            style: TextStyle(
+                              fontSize: 16,
+                              color: Colors.grey[500],
+                            ),
+                          ),
+                        ],
+                      ),
+                    );
+                  }
+
+                  return ListView.builder(
+                    padding: const EdgeInsets.symmetric(vertical: 8),
+                    itemCount: notifications.length,
+                    itemBuilder: (context, index) {
+                      final data = notifications[index];
+                      final isRead = data['isRead'] ?? false;
+                      final notificationId = data['id'] ?? '';
+                      
+                      return ListTile(
+                        onTap: () {
+                          if (!isRead && notificationId.isNotEmpty) {
+                            notificationService.markAsRead(notificationId);
+                          }
+                        },
+                        leading: Container(
+                          width: 40,
+                          height: 40,
+                          decoration: BoxDecoration(
+                            color: _getNotificationColor(data['type']).withOpacity(0.1),
+                            borderRadius: BorderRadius.circular(10),
+                          ),
+                          child: Icon(
+                            _getNotificationIcon(data['type']),
+                            color: _getNotificationColor(data['type']),
+                            size: 20,
+                          ),
+                        ),
+                        title: Text(
+                          data['title'] ?? 'Notification',
+                          style: TextStyle(
+                            fontWeight: isRead ? FontWeight.normal : FontWeight.bold,
+                            fontSize: 14,
+                          ),
+                        ),
+                        subtitle: Text(
+                          data['body'] ?? '',
+                          style: TextStyle(
+                            fontSize: 12,
+                            color: Colors.grey[600],
+                          ),
+                          maxLines: 2,
+                          overflow: TextOverflow.ellipsis,
+                        ),
+                        trailing: !isRead
+                            ? Container(
+                                width: 8,
+                                height: 8,
+                                decoration: const BoxDecoration(
+                                  color: Colors.blue,
+                                  shape: BoxShape.circle,
+                                ),
+                              )
+                            : null,
+                      );
+                    },
+                  );
+                },
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  IconData _getNotificationIcon(String? type) {
+    switch (type) {
+      case 'notice':
+        return Icons.campaign_outlined;
+      case 'attendance':
+        return Icons.location_on_outlined;
+      case 'machine':
+        return Icons.local_laundry_service_outlined;
+      case 'finance':
+        return Icons.account_balance_wallet_outlined;
+      case 'support':
+        return Icons.support_agent_outlined;
+      case 'verification':
+        return Icons.verified_outlined;
+      default:
+        return Icons.notifications_outlined;
+    }
+  }
+
+  Color _getNotificationColor(String? type) {
+    switch (type) {
+      case 'notice':
+        return Colors.orange;
+      case 'attendance':
+        return Colors.green;
+      case 'machine':
+        return Colors.blue;
+      case 'finance':
+        return Colors.purple;
+      case 'support':
+        return Colors.red;
+      case 'verification':
+        return Colors.teal;
+      default:
+        return Colors.grey;
+    }
+  }
 }
