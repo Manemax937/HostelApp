@@ -21,11 +21,10 @@ class _RegisterScreenState extends State<RegisterScreen> {
   final _passwordController = TextEditingController();
   final _roomNoController = TextEditingController();
   final _floorController = TextEditingController();
-  final _residenceNameController = TextEditingController();
   bool _isLoading = false;
   bool _isGoogleLoading = false;
   bool _obscurePassword = true;
-  bool _isOwner = false;
+  String _userType = 'student'; // 'student', 'housekeeper', 'owner'
 
   @override
   void dispose() {
@@ -34,7 +33,6 @@ class _RegisterScreenState extends State<RegisterScreen> {
     _passwordController.dispose();
     _roomNoController.dispose();
     _floorController.dispose();
-    _residenceNameController.dispose();
     super.dispose();
   }
 
@@ -46,12 +44,11 @@ class _RegisterScreenState extends State<RegisterScreen> {
     try {
       final authService = Provider.of<AuthService>(context, listen: false);
 
-      if (_isOwner) {
+      if (_userType == 'owner') {
         await authService.registerOwner(
           email: _emailController.text.trim(),
           password: _passwordController.text,
           fullName: _nameController.text.trim(),
-          residenceName: _residenceNameController.text.trim(),
         );
 
         // Owner stays signed in and will see verification screen
@@ -66,6 +63,24 @@ class _RegisterScreenState extends State<RegisterScreen> {
             ),
           );
         }
+      } else if (_userType == 'housekeeper') {
+        await authService.registerHousekeeper(
+          email: _emailController.text.trim(),
+          password: _passwordController.text,
+          fullName: _nameController.text.trim(),
+        );
+
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(
+              content: Text(
+                'Registration successful! Please check your email and verify before signing in.',
+              ),
+              backgroundColor: AppTheme.successColor,
+              duration: Duration(seconds: 5),
+            ),
+          );
+        }
       } else {
         await authService.registerWithEmail(
           email: _emailController.text.trim(),
@@ -73,7 +88,6 @@ class _RegisterScreenState extends State<RegisterScreen> {
           fullName: _nameController.text.trim(),
           roomNo: _roomNoController.text.trim(),
           floor: int.parse(_floorController.text),
-          residenceName: _residenceNameController.text.trim(),
         );
 
         if (mounted) {
@@ -160,6 +174,46 @@ class _RegisterScreenState extends State<RegisterScreen> {
     }
   }
 
+  Widget _buildRoleChip(String value, String label, IconData icon) {
+    final isSelected = _userType == value;
+    return Expanded(
+      child: GestureDetector(
+        onTap: () => setState(() => _userType = value),
+        child: Container(
+          padding: const EdgeInsets.symmetric(vertical: 12),
+          decoration: BoxDecoration(
+            color: isSelected ? AppTheme.primaryBlue : Colors.transparent,
+            borderRadius: BorderRadius.circular(10),
+            border: Border.all(
+              color: isSelected
+                  ? AppTheme.primaryBlue
+                  : AppTheme.textLight.withOpacity(0.3),
+            ),
+          ),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Icon(
+                icon,
+                size: 20,
+                color: isSelected ? Colors.white : AppTheme.textLight,
+              ),
+              const SizedBox(height: 4),
+              Text(
+                label,
+                style: TextStyle(
+                  fontSize: 12,
+                  fontWeight: isSelected ? FontWeight.w600 : FontWeight.normal,
+                  color: isSelected ? Colors.white : AppTheme.textPrimary,
+                ),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     return Form(
@@ -168,7 +222,7 @@ class _RegisterScreenState extends State<RegisterScreen> {
         physics: const ClampingScrollPhysics(),
         child: Column(
           children: [
-            // Owner/Student Toggle
+            // User Type Selection
             Container(
               decoration: BoxDecoration(
                 color: AppTheme.cardBackground,
@@ -176,8 +230,8 @@ class _RegisterScreenState extends State<RegisterScreen> {
                 border: Border.all(color: AppTheme.textLight.withOpacity(0.2)),
               ),
               padding: const EdgeInsets.all(16),
-              child: Row(
-                mainAxisAlignment: MainAxisAlignment.spaceBetween,
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
                   Text(
                     'Register as:',
@@ -185,35 +239,25 @@ class _RegisterScreenState extends State<RegisterScreen> {
                       fontWeight: FontWeight.w600,
                     ),
                   ),
+                  const SizedBox(height: 12),
                   Row(
                     children: [
-                      Text(
+                      _buildRoleChip(
+                        'student',
                         'Student',
-                        style: TextStyle(
-                          color: !_isOwner
-                              ? AppTheme.primaryBlue
-                              : AppTheme.textLight,
-                          fontWeight: !_isOwner
-                              ? FontWeight.w600
-                              : FontWeight.normal,
-                        ),
+                        Icons.school_outlined,
                       ),
-                      Switch(
-                        value: _isOwner,
-                        onChanged: (value) {
-                          setState(() => _isOwner = value);
-                        },
+                      const SizedBox(width: 8),
+                      _buildRoleChip(
+                        'housekeeper',
+                        'Staff',
+                        Icons.cleaning_services_outlined,
                       ),
-                      Text(
+                      const SizedBox(width: 8),
+                      _buildRoleChip(
+                        'owner',
                         'Owner',
-                        style: TextStyle(
-                          color: _isOwner
-                              ? AppTheme.primaryBlue
-                              : AppTheme.textLight,
-                          fontWeight: _isOwner
-                              ? FontWeight.w600
-                              : FontWeight.normal,
-                        ),
+                        Icons.admin_panel_settings_outlined,
                       ),
                     ],
                   ),
@@ -222,40 +266,11 @@ class _RegisterScreenState extends State<RegisterScreen> {
             ),
             const SizedBox(height: 20),
 
-            // Residence Name field
-            if (_isOwner) ...[
-              CustomTextField(
-                label: 'Residence/Hostel Name',
-                hint: 'Enter your residence name',
-                controller: _residenceNameController,
-                prefixIcon: const Icon(Icons.home_outlined),
-                validator: (value) {
-                  if (value == null || value.isEmpty) {
-                    return 'Please enter residence name';
-                  }
-                  return null;
-                },
-              ),
-              const SizedBox(height: 20),
-            ] else ...[
-              CustomTextField(
-                label: 'Residence/Hostel Name',
-                hint: 'Enter residence name',
-                controller: _residenceNameController,
-                prefixIcon: const Icon(Icons.home_outlined),
-                validator: (value) {
-                  if (value == null || value.isEmpty) {
-                    return 'Please enter residence name';
-                  }
-                  return null;
-                },
-              ),
-              const SizedBox(height: 20),
-            ],
-
             CustomTextField(
-              label: _isOwner ? 'Full Name' : 'Your Full Name',
-              hint: _isOwner ? 'Owner Name' : 'Your Name',
+              label: _userType == 'owner' ? 'Full Name' : 'Your Full Name',
+              hint: _userType == 'owner'
+                  ? 'Owner Name'
+                  : (_userType == 'housekeeper' ? 'Staff Name' : 'Your Name'),
               controller: _nameController,
               prefixIcon: const Icon(Icons.person_outline),
               validator: (value) {
@@ -268,7 +283,7 @@ class _RegisterScreenState extends State<RegisterScreen> {
             const SizedBox(height: 20),
 
             // Room and Floor (for students only)
-            if (!_isOwner) ...[
+            if (_userType == 'student') ...[
               Row(
                 children: [
                   Expanded(
@@ -354,7 +369,11 @@ class _RegisterScreenState extends State<RegisterScreen> {
             SizedBox(
               width: double.infinity,
               child: CustomButton(
-                text: _isOwner ? 'REGISTER AS OWNER' : 'REQUEST ACCESS',
+                text: _userType == 'owner'
+                    ? 'REGISTER AS OWNER'
+                    : (_userType == 'housekeeper'
+                          ? 'REGISTER AS STAFF'
+                          : 'REQUEST ACCESS'),
                 onPressed: _register,
                 isLoading: _isLoading,
               ),
@@ -415,7 +434,7 @@ class _RegisterScreenState extends State<RegisterScreen> {
             const SizedBox(height: 16),
 
             Text(
-              _isOwner
+              _userType == 'owner'
                   ? 'You will receive a verification code via email\nto activate your account.'
                   : 'For email registration, you will receive a\nverification link to confirm your email.',
               textAlign: TextAlign.center,

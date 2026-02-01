@@ -385,6 +385,82 @@ class NotificationService {
     );
   }
 
+  // ============ HOUSEKEEPING NOTIFICATIONS ============
+
+  /// Send notification to all students on a specific floor when cleaning starts
+  Future<void> sendFloorCleaningNotification({
+    required int floor,
+    required String staffName,
+  }) async {
+    try {
+      // Get all students on this floor
+      final studentsOnFloor = await _firestore
+          .collection('users')
+          .where('role', isEqualTo: 'student')
+          .where('floor', isEqualTo: floor)
+          .where('isActive', isEqualTo: true)
+          .get();
+
+      debugPrint('Found ${studentsOnFloor.docs.length} students on floor $floor');
+
+      // Send notification to each student on this floor
+      for (final studentDoc in studentsOnFloor.docs) {
+        final studentId = studentDoc.id;
+        
+        // Save notification to Firestore for each student
+        await _saveNotification(
+          type: NotificationType.general,
+          title: '🧹 Floor Cleaning Started',
+          body: 'Floor $floor cleaning has started by $staffName. Please keep your room accessible.',
+          userId: studentId,
+        );
+      }
+
+      // Also show local notification for immediate feedback
+      await _showLocalNotification(
+        title: '🧹 Cleaning Started',
+        body: 'You have started cleaning Floor $floor. ${studentsOnFloor.docs.length} residents notified.',
+        payload: 'housekeeping',
+      );
+
+      debugPrint('Floor cleaning notifications sent for floor $floor');
+    } catch (e) {
+      debugPrint('Error sending floor cleaning notifications: $e');
+    }
+  }
+
+  /// Send notification when floor cleaning is completed
+  Future<void> sendFloorCleaningCompletedNotification({
+    required int floor,
+    required String staffName,
+  }) async {
+    try {
+      // Get all students on this floor
+      final studentsOnFloor = await _firestore
+          .collection('users')
+          .where('role', isEqualTo: 'student')
+          .where('floor', isEqualTo: floor)
+          .where('isActive', isEqualTo: true)
+          .get();
+
+      // Send notification to each student on this floor
+      for (final studentDoc in studentsOnFloor.docs) {
+        final studentId = studentDoc.id;
+        
+        await _saveNotification(
+          type: NotificationType.general,
+          title: '✨ Floor Cleaning Completed',
+          body: 'Floor $floor cleaning has been completed.',
+          userId: studentId,
+        );
+      }
+
+      debugPrint('Floor cleaning completed notifications sent for floor $floor');
+    } catch (e) {
+      debugPrint('Error sending floor cleaning completed notifications: $e');
+    }
+  }
+
   // ============ SUPPORT NOTIFICATIONS ============
 
   /// Send notification when complaint is submitted (broadcast to residence)

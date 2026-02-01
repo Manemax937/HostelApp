@@ -95,19 +95,27 @@ class _GoogleRegistrationScreenState extends State<GoogleRegistrationScreen> {
 
               // Role selection
               _RoleCard(
-                title: 'PG Owner',
-                subtitle: 'I own and manage a PG/Hostel',
-                icon: Icons.business,
-                isSelected: _selectedRole == 'owner',
-                onTap: () => setState(() => _selectedRole = 'owner'),
-              ),
-              const SizedBox(height: 12),
-              _RoleCard(
                 title: 'Student / Resident',
-                subtitle: 'I am staying at a PG/Hostel',
+                subtitle: 'I am staying at the hostel',
                 icon: Icons.school,
                 isSelected: _selectedRole == 'student',
                 onTap: () => setState(() => _selectedRole = 'student'),
+              ),
+              const SizedBox(height: 12),
+              _RoleCard(
+                title: 'Housekeeping Staff',
+                subtitle: 'I work as housekeeping staff',
+                icon: Icons.cleaning_services,
+                isSelected: _selectedRole == 'housekeeper',
+                onTap: () => setState(() => _selectedRole = 'housekeeper'),
+              ),
+              const SizedBox(height: 12),
+              _RoleCard(
+                title: 'PG Owner',
+                subtitle: 'I own and manage the hostel',
+                icon: Icons.business,
+                isSelected: _selectedRole == 'owner',
+                onTap: () => setState(() => _selectedRole = 'owner'),
               ),
 
               const Spacer(),
@@ -121,6 +129,12 @@ class _GoogleRegistrationScreenState extends State<GoogleRegistrationScreen> {
                           Navigator.of(context).pushReplacement(
                             MaterialPageRoute(
                               builder: (context) => const _OwnerDetailsScreen(),
+                            ),
+                          );
+                        } else if (_selectedRole == 'housekeeper') {
+                          Navigator.of(context).pushReplacement(
+                            MaterialPageRoute(
+                              builder: (context) => const _StaffDetailsScreen(),
                             ),
                           );
                         } else {
@@ -227,7 +241,6 @@ class _OwnerDetailsScreen extends StatefulWidget {
 class _OwnerDetailsScreenState extends State<_OwnerDetailsScreen> {
   final _formKey = GlobalKey<FormState>();
   final _nameController = TextEditingController();
-  final _residenceController = TextEditingController();
   final _codeController = TextEditingController();
   bool _isLoading = false;
   bool _registrationComplete = false;
@@ -243,7 +256,6 @@ class _OwnerDetailsScreenState extends State<_OwnerDetailsScreen> {
   @override
   void dispose() {
     _nameController.dispose();
-    _residenceController.dispose();
     _codeController.dispose();
     super.dispose();
   }
@@ -259,7 +271,6 @@ class _OwnerDetailsScreenState extends State<_OwnerDetailsScreen> {
       // Cloud Function will generate and email the verification code
       await authService.completeGoogleOwnerRegistration(
         fullName: _nameController.text.trim(),
-        residenceName: _residenceController.text.trim(),
       );
 
       setState(() => _registrationComplete = true);
@@ -360,19 +371,6 @@ class _OwnerDetailsScreenState extends State<_OwnerDetailsScreen> {
                       return null;
                     },
                   ),
-                  const SizedBox(height: 20),
-                  CustomTextField(
-                    label: 'PG/Hostel Name',
-                    hint: 'Enter your PG/Hostel name',
-                    controller: _residenceController,
-                    prefixIcon: const Icon(Icons.business_outlined),
-                    validator: (value) {
-                      if (value == null || value.isEmpty) {
-                        return 'Please enter PG/Hostel name';
-                      }
-                      return null;
-                    },
-                  ),
                   const SizedBox(height: 32),
                   CustomButton(
                     text: 'REGISTER',
@@ -444,7 +442,6 @@ class _StudentDetailsScreen extends StatefulWidget {
 class _StudentDetailsScreenState extends State<_StudentDetailsScreen> {
   final _formKey = GlobalKey<FormState>();
   final _nameController = TextEditingController();
-  final _residenceController = TextEditingController();
   final _roomController = TextEditingController();
   int _selectedFloor = 1;
   bool _isLoading = false;
@@ -460,7 +457,6 @@ class _StudentDetailsScreenState extends State<_StudentDetailsScreen> {
   @override
   void dispose() {
     _nameController.dispose();
-    _residenceController.dispose();
     _roomController.dispose();
     super.dispose();
   }
@@ -477,7 +473,6 @@ class _StudentDetailsScreenState extends State<_StudentDetailsScreen> {
         fullName: _nameController.text.trim(),
         roomNo: _roomController.text.trim(),
         floor: _selectedFloor,
-        residenceName: _residenceController.text.trim(),
       );
 
       if (mounted) {
@@ -578,19 +573,6 @@ class _StudentDetailsScreenState extends State<_StudentDetailsScreen> {
                 ),
                 const SizedBox(height: 20),
                 CustomTextField(
-                  label: 'PG/Hostel Name',
-                  hint: 'Enter your PG/Hostel name',
-                  controller: _residenceController,
-                  prefixIcon: const Icon(Icons.business_outlined),
-                  validator: (value) {
-                    if (value == null || value.isEmpty) {
-                      return 'Please enter PG/Hostel name';
-                    }
-                    return null;
-                  },
-                ),
-                const SizedBox(height: 20),
-                CustomTextField(
                   label: 'Room Number',
                   hint: 'Enter your room number',
                   controller: _roomController,
@@ -638,6 +620,157 @@ class _StudentDetailsScreenState extends State<_StudentDetailsScreen> {
                       },
                     ),
                   ),
+                ),
+                const SizedBox(height: 32),
+
+                CustomButton(
+                  text: 'COMPLETE REGISTRATION',
+                  onPressed: _register,
+                  isLoading: _isLoading,
+                ),
+              ],
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+// Staff/Housekeeper details screen
+class _StaffDetailsScreen extends StatefulWidget {
+  const _StaffDetailsScreen();
+
+  @override
+  State<_StaffDetailsScreen> createState() => _StaffDetailsScreenState();
+}
+
+class _StaffDetailsScreenState extends State<_StaffDetailsScreen> {
+  final _formKey = GlobalKey<FormState>();
+  final _nameController = TextEditingController();
+  bool _isLoading = false;
+
+  @override
+  void initState() {
+    super.initState();
+    // Pre-fill name from Google account
+    final authService = Provider.of<AuthService>(context, listen: false);
+    _nameController.text = authService.currentUser?.displayName ?? '';
+  }
+
+  @override
+  void dispose() {
+    _nameController.dispose();
+    super.dispose();
+  }
+
+  Future<void> _register() async {
+    if (!_formKey.currentState!.validate()) return;
+
+    setState(() => _isLoading = true);
+
+    try {
+      final authService = Provider.of<AuthService>(context, listen: false);
+
+      await authService.completeGoogleHousekeeperRegistration(
+        fullName: _nameController.text.trim(),
+      );
+
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text('Registration successful! Welcome aboard.'),
+            backgroundColor: AppTheme.successColor,
+          ),
+        );
+        // Navigation will be handled by auth state listener
+        Navigator.of(context).popUntil((route) => route.isFirst);
+      }
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text(e.toString()),
+            backgroundColor: AppTheme.errorColor,
+          ),
+        );
+      }
+    } finally {
+      if (mounted) {
+        setState(() => _isLoading = false);
+      }
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return Scaffold(
+      backgroundColor: AppTheme.backgroundColor,
+      appBar: AppBar(
+        backgroundColor: Colors.transparent,
+        elevation: 0,
+        leading: IconButton(
+          icon: const Icon(Icons.arrow_back),
+          onPressed: () => Navigator.of(context).pop(),
+        ),
+        title: const Text('Staff Details'),
+      ),
+      body: SafeArea(
+        child: SingleChildScrollView(
+          padding: const EdgeInsets.all(24),
+          child: Form(
+            key: _formKey,
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.stretch,
+              children: [
+                // Email verified indicator
+                Container(
+                  padding: const EdgeInsets.all(16),
+                  decoration: BoxDecoration(
+                    color: AppTheme.successColor.withOpacity(0.1),
+                    borderRadius: BorderRadius.circular(12),
+                  ),
+                  child: Row(
+                    children: [
+                      Icon(Icons.verified, color: AppTheme.successColor),
+                      const SizedBox(width: 12),
+                      Expanded(
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Text(
+                              'Email Verified',
+                              style: Theme.of(context).textTheme.titleSmall
+                                  ?.copyWith(fontWeight: FontWeight.bold),
+                            ),
+                            Consumer<AuthService>(
+                              builder: (context, authService, _) {
+                                return Text(
+                                  authService.currentUser?.email ?? '',
+                                  style: Theme.of(context).textTheme.bodySmall
+                                      ?.copyWith(color: AppTheme.textLight),
+                                );
+                              },
+                            ),
+                          ],
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+                const SizedBox(height: 24),
+
+                CustomTextField(
+                  label: 'Full Name',
+                  hint: 'Enter your full name',
+                  controller: _nameController,
+                  prefixIcon: const Icon(Icons.person_outline),
+                  validator: (value) {
+                    if (value == null || value.isEmpty) {
+                      return 'Please enter your name';
+                    }
+                    return null;
+                  },
                 ),
                 const SizedBox(height: 32),
 

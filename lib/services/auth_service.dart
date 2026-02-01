@@ -55,7 +55,6 @@ class AuthService extends ChangeNotifier {
     required String fullName,
     required String roomNo,
     required int floor,
-    required String residenceName,
   }) async {
     try {
       // Create auth user first
@@ -64,17 +63,8 @@ class AuthService extends ChangeNotifier {
         password: password,
       );
 
-      // Now check if residence exists (authenticated user can read)
-      final ownerQuery = await _firestore
-          .collection(AppConstants.usersCollection)
-          .where('role', isEqualTo: 'owner')
-          .where('residenceName', isEqualTo: residenceName)
-          .where('isVerified', isEqualTo: true)
-          .get();
-
-      bool isActive = ownerQuery.docs.isNotEmpty;
-
       // Create user document in Firestore
+      // Students are active immediately, just need email verification
       final userModel = UserModel(
         uid: credential.user!.uid,
         fullName: fullName,
@@ -83,8 +73,8 @@ class AuthService extends ChangeNotifier {
         roomNo: roomNo,
         floor: floor,
         createdAt: DateTime.now(),
-        isActive: isActive, // Auto-approved if residence exists
-        residenceName: residenceName,
+        isActive: true, // Active immediately
+        residenceName: AppConstants.hostelName,
       );
 
       await _firestore
@@ -98,12 +88,50 @@ class AuthService extends ChangeNotifier {
       // Sign out - user needs to verify email first
       await _auth.signOut();
 
-      if (!isActive) {
-        throw 'Residence "$residenceName" not found or not verified. Your account is created but needs admin approval.';
-      }
+      // Throw message to inform about email verification
+      throw 'Registration successful! Please check your email and click the verification link to sign in.';
+    } on FirebaseAuthException catch (e) {
+      throw _handleAuthException(e);
+    }
+  }
+
+  /// Register a new housekeeper
+  Future<UserCredential> registerHousekeeper({
+    required String email,
+    required String password,
+    required String fullName,
+  }) async {
+    try {
+      // Create auth user first
+      final credential = await _auth.createUserWithEmailAndPassword(
+        email: email,
+        password: password,
+      );
+
+      // Create housekeeper document in Firestore
+      final userModel = UserModel(
+        uid: credential.user!.uid,
+        fullName: fullName,
+        email: email,
+        role: UserRole.housekeeping,
+        createdAt: DateTime.now(),
+        isActive: true, // Housekeepers active immediately
+        residenceName: AppConstants.hostelName,
+      );
+
+      await _firestore
+          .collection(AppConstants.usersCollection)
+          .doc(credential.user!.uid)
+          .set(userModel.toMap());
+
+      // Send email verification link
+      await credential.user!.sendEmailVerification();
+
+      // Sign out - user needs to verify email first
+      await _auth.signOut();
 
       // Throw message to inform about email verification
-      throw 'Registration successful! Please check your email and click the verification link before signing in.';
+      throw 'Registration successful! Please check your email and click the verification link to sign in.';
     } on FirebaseAuthException catch (e) {
       throw _handleAuthException(e);
     }
@@ -113,7 +141,6 @@ class AuthService extends ChangeNotifier {
     required String email,
     required String password,
     required String fullName,
-    required String residenceName,
   }) async {
     try {
       // Create auth user
@@ -129,7 +156,7 @@ class AuthService extends ChangeNotifier {
         fullName: fullName,
         email: email,
         role: UserRole.owner,
-        residenceName: residenceName,
+        residenceName: AppConstants.hostelName,
         createdAt: DateTime.now(),
         isActive: false,
         isVerified: false,
@@ -243,8 +270,14 @@ class AuthService extends ChangeNotifier {
   /// Sign in with Google - returns credential and whether user is new
   Future<GoogleSignInResult> signInWithGoogle() async {
     try {
-      // First, sign out from any existing Google session to allow account selection
-      await _googleSignIn.signOut();
+      // First, try to sign out from any existing Google session to allow account selection
+      // Wrapped in try-catch as it may fail if no session exists
+      try {
+        await _googleSignIn.signOut();
+      } catch (e) {
+        debugPrint('Google sign out skipped (no existing session): $e');
+        // Continue with sign-in even if sign-out fails
+      }
 
       // Trigger the Google Sign-In flow
       final GoogleSignInAccount? googleUser = await _googleSignIn.signIn();
@@ -345,7 +378,6 @@ class AuthService extends ChangeNotifier {
   /// Complete Google registration for owner
   Future<void> completeGoogleOwnerRegistration({
     required String fullName,
-    required String residenceName,
   }) async {
     if (currentUser == null) throw 'Please sign in first';
 
@@ -356,7 +388,7 @@ class AuthService extends ChangeNotifier {
       fullName: fullName,
       email: currentUser!.email ?? '',
       role: UserRole.owner,
-      residenceName: residenceName,
+      residenceName: AppConstants.hostelName,
       createdAt: DateTime.now(),
       isActive: false,
       isVerified: false,
@@ -375,21 +407,11 @@ class AuthService extends ChangeNotifier {
     required String fullName,
     required String roomNo,
     required int floor,
-    required String residenceName,
   }) async {
     if (currentUser == null) throw 'Please sign in first';
 
-    // Check if residence exists
-    final ownerQuery = await _firestore
-        .collection(AppConstants.usersCollection)
-        .where('role', isEqualTo: 'owner')
-        .where('residenceName', isEqualTo: residenceName)
-        .where('isVerified', isEqualTo: true)
-        .get();
-
-    bool isActive = ownerQuery.docs.isNotEmpty;
-
     // Create student document in Firestore
+    // Google accounts are already verified, so students are active immediately
     final userModel = UserModel(
       uid: currentUser!.uid,
       fullName: fullName,
@@ -398,8 +420,8 @@ class AuthService extends ChangeNotifier {
       roomNo: roomNo,
       floor: floor,
       createdAt: DateTime.now(),
-      isActive: isActive,
-      residenceName: residenceName,
+      isActive: true, // Active immediately for Google sign-in
+      residenceName: AppConstants.hostelName,
     );
 
     await _firestore
@@ -407,10 +429,31 @@ class AuthService extends ChangeNotifier {
         .doc(currentUser!.uid)
         .set(userModel.toMap());
 
-    if (!isActive) {
-      await _auth.signOut();
-      throw 'Residence "$residenceName" not found or not verified. Your account is created but needs admin approval.';
-    }
+    await _loadUserData(currentUser!.uid);
+  }
+
+  /// Complete Google registration for housekeeper/staff
+  Future<void> completeGoogleHousekeeperRegistration({
+    required String fullName,
+  }) async {
+    if (currentUser == null) throw 'Please sign in first';
+
+    // Create housekeeper document in Firestore
+    // Google accounts are already verified, so staff are active immediately
+    final userModel = UserModel(
+      uid: currentUser!.uid,
+      fullName: fullName,
+      email: currentUser!.email ?? '',
+      role: UserRole.housekeeping,
+      createdAt: DateTime.now(),
+      isActive: true, // Active immediately for Google sign-in
+      residenceName: AppConstants.hostelName,
+    );
+
+    await _firestore
+        .collection(AppConstants.usersCollection)
+        .doc(currentUser!.uid)
+        .set(userModel.toMap());
 
     await _loadUserData(currentUser!.uid);
   }

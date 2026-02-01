@@ -1,0 +1,39 @@
+rules_version = '2';
+service firebase.storage {
+  match /b/{bucket}/o {
+    // Helper function to check if user is authenticated
+    function isSignedIn() {
+      return request.auth != null;
+    }
+    
+    // Banner images - allow authenticated users to read, admin/owner to write
+    match /banners/{fileName} {
+      allow read: if isSignedIn();
+      allow write: if isSignedIn();
+    }
+    
+    // Profile images
+    match /profiles/{userId}/{fileName} {
+      allow read: if isSignedIn();
+      allow write: if isSignedIn() && request.auth.uid == userId;
+    }
+    
+    // Payment screenshots
+    match /payments/{fileName} {
+      allow read: if isSignedIn();
+      allow write: if isSignedIn();
+    }
+    
+    // Complaint photos
+    match /complaint_photos/{fileName} {
+      allow read: if isSignedIn();
+      allow write: if isSignedIn();
+    }
+    
+    // General uploads folder
+    match /uploads/{allPaths=**} {
+      allow read: if isSignedIn();
+      allow write: if isSignedIn();
+    }
+  }
+}

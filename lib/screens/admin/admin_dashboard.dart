@@ -22,7 +22,7 @@ class _AdminDashboardState extends State<AdminDashboard> {
   Widget build(BuildContext context) {
     final screens = [
       _DashboardOverview(),
-      _UsersManagement(),
+      _ResidentsManagement(),
       _PaymentsManagement(),
       _ComplaintsManagement(),
       _ProfileScreen(),
@@ -54,7 +54,7 @@ class _AdminDashboardState extends State<AdminDashboard> {
             icon: Icon(Icons.dashboard),
             label: 'Dashboard',
           ),
-          BottomNavigationBarItem(icon: Icon(Icons.people), label: 'Users'),
+          BottomNavigationBarItem(icon: Icon(Icons.people), label: 'Residents'),
           BottomNavigationBarItem(icon: Icon(Icons.payment), label: 'Payments'),
           BottomNavigationBarItem(
             icon: Icon(Icons.report_problem),
@@ -69,7 +69,7 @@ class _AdminDashboardState extends State<AdminDashboard> {
   String _getTitleForIndex() {
     switch (_currentIndex) {
       case 1:
-        return 'User Management';
+        return 'Residents Management';
       case 2:
         return 'Payments';
       case 3:
@@ -173,52 +173,163 @@ class _DashboardOverview extends StatelessWidget {
   }
 }
 
-class _UsersManagement extends StatelessWidget {
+class _ResidentsManagement extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final authService = Provider.of<AuthService>(context);
 
     return StreamBuilder<List<UserModel>>(
-      stream: authService.getAllUsers(),
+      stream: authService.getUsersByRole(UserRole.student),
       builder: (context, snapshot) {
         if (snapshot.connectionState == ConnectionState.waiting) {
           return const Center(child: CircularProgressIndicator());
         }
 
         if (!snapshot.hasData || snapshot.data!.isEmpty) {
-          return const Center(child: Text('No users found'));
+          return Center(
+            child: Column(
+              mainAxisAlignment: MainAxisAlignment.center,
+              children: [
+                Icon(Icons.people_outline, size: 64, color: AppTheme.textSecondary),
+                const SizedBox(height: 16),
+                const Text('No residents yet'),
+                const SizedBox(height: 8),
+                Text(
+                  'Students who register will appear here',
+                  style: TextStyle(color: AppTheme.textSecondary),
+                ),
+              ],
+            ),
+          );
         }
 
-        final users = snapshot.data!;
+        final students = snapshot.data!;
 
-        return ListView.builder(
+        return ListView(
           padding: const EdgeInsets.all(16),
-          itemCount: users.length,
-          itemBuilder: (context, index) {
-            final user = users[index];
-            return Card(
-              child: ListTile(
-                leading: CircleAvatar(
-                  backgroundColor: user.isActive
-                      ? AppTheme.primaryBlue
-                      : AppTheme.textLight,
-                  child: Text(user.fullName[0].toUpperCase()),
+          children: [
+            // Header
+            Row(
+              children: [
+                Icon(Icons.people, color: AppTheme.primaryBlue),
+                const SizedBox(width: 8),
+                Text(
+                  'All Residents (${students.length})',
+                  style: Theme.of(context).textTheme.titleMedium?.copyWith(
+                    fontWeight: FontWeight.bold,
+                  ),
                 ),
-                title: Text(user.fullName),
-                subtitle: Text(
-                  '${user.role.toString().split('.').last.toUpperCase()} - Room ${user.roomNo ?? "N/A"}',
-                ),
-                trailing: Switch(
-                  value: user.isActive,
-                  onChanged: (value) {
-                    authService.toggleUserStatus(user.uid, value);
-                  },
-                ),
-              ),
-            );
-          },
+              ],
+            ),
+            const SizedBox(height: 16),
+            ...students.map((student) => _buildResidentCard(context, student, authService)),
+          ],
         );
       },
+    );
+  }
+
+  Widget _buildResidentCard(BuildContext context, UserModel student, AuthService authService) {
+    return Card(
+      margin: const EdgeInsets.only(bottom: 8),
+      child: Padding(
+        padding: const EdgeInsets.all(12),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Row(
+              children: [
+                CircleAvatar(
+                  backgroundColor: AppTheme.primaryBlue,
+                  child: Text(
+                    student.fullName.isNotEmpty ? student.fullName[0].toUpperCase() : '?',
+                    style: const TextStyle(color: Colors.white, fontWeight: FontWeight.bold),
+                  ),
+                ),
+                const SizedBox(width: 12),
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        student.fullName,
+                        style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 16),
+                      ),
+                      const SizedBox(height: 2),
+                      Text(
+                        student.email,
+                        style: TextStyle(
+                          fontSize: 12,
+                          color: AppTheme.textSecondary,
+                        ),
+                      ),
+                      const SizedBox(height: 2),
+                      Row(
+                        children: [
+                          Icon(Icons.meeting_room, size: 14, color: AppTheme.textSecondary),
+                          const SizedBox(width: 4),
+                          Text(
+                            'Room ${student.roomNo ?? "N/A"}',
+                            style: TextStyle(fontSize: 12, color: AppTheme.textSecondary),
+                          ),
+                          const SizedBox(width: 12),
+                          Icon(Icons.layers, size: 14, color: AppTheme.textSecondary),
+                          const SizedBox(width: 4),
+                          Text(
+                            'Floor ${student.floor ?? "N/A"}',
+                            style: TextStyle(fontSize: 12, color: AppTheme.textSecondary),
+                          ),
+                        ],
+                      ),
+                    ],
+                  ),
+                ),
+                // Remove Button
+                IconButton(
+                  onPressed: () => _showRemoveDialog(context, student, authService),
+                  icon: const Icon(Icons.person_remove),
+                  color: AppTheme.errorColor,
+                  tooltip: 'Remove Resident',
+                ),
+              ],
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  void _showRemoveDialog(BuildContext context, UserModel student, AuthService authService) {
+    showDialog(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: const Text('Remove Resident?'),
+        content: Text(
+          'Are you sure you want to remove ${student.fullName}?\n\nThis action cannot be undone.',
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context),
+            child: const Text('Cancel'),
+          ),
+          ElevatedButton(
+            onPressed: () {
+              authService.deleteUser(student.uid);
+              Navigator.pop(context);
+              ScaffoldMessenger.of(context).showSnackBar(
+                SnackBar(
+                  content: Text('${student.fullName} has been removed'),
+                  backgroundColor: AppTheme.errorColor,
+                ),
+              );
+            },
+            style: ElevatedButton.styleFrom(
+              backgroundColor: AppTheme.errorColor,
+            ),
+            child: const Text('Remove'),
+          ),
+        ],
+      ),
     );
   }
 }

@@ -1,12 +1,12 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import 'package:hostelapp/models/notice_model.dart';
-import 'package:hostelapp/models/pg_attendance_model.dart';
 import 'package:hostelapp/models/machine_model.dart';
 import 'package:hostelapp/services/auth_service.dart';
 import 'package:hostelapp/services/notice_service.dart';
-import 'package:hostelapp/services/pg_attendance_service.dart';
 import 'package:hostelapp/services/machine_service.dart';
+import 'package:hostelapp/services/banner_service.dart';
+import 'package:hostelapp/widgets/banner_carousel.dart';
 import 'package:intl/intl.dart';
 
 class StudentDashboardScreen extends StatefulWidget {
@@ -19,7 +19,6 @@ class StudentDashboardScreen extends StatefulWidget {
 class _StudentDashboardScreenState extends State<StudentDashboardScreen> {
   final GlobalKey<RefreshIndicatorState> _refreshKey =
       GlobalKey<RefreshIndicatorState>();
-  bool _isMarkingAttendance = false;
 
   Future<void> _onRefresh() async {
     // Trigger a rebuild by calling setState
@@ -33,7 +32,7 @@ class _StudentDashboardScreenState extends State<StudentDashboardScreen> {
     final authService = Provider.of<AuthService>(context);
     final user = authService.currentUserModel;
     final noticeService = Provider.of<NoticeService>(context);
-    final pgAttendanceService = Provider.of<PgAttendanceService>(context);
+    final bannerService = Provider.of<BannerService>(context);
     final machineService = Provider.of<MachineService>(context);
 
     return RefreshIndicator(
@@ -164,146 +163,20 @@ class _StudentDashboardScreenState extends State<StudentDashboardScreen> {
 
             const SizedBox(height: 20),
 
-            // PG Attendance Card
-            if (user != null)
-              Padding(
-                padding: const EdgeInsets.symmetric(horizontal: 20),
-                child: Container(
-                  padding: const EdgeInsets.all(20),
-                  decoration: BoxDecoration(
-                    gradient: const LinearGradient(
-                      colors: [Color(0xFF1a1a2e), Color(0xFF16213e)],
-                      begin: Alignment.topLeft,
-                      end: Alignment.bottomRight,
-                    ),
-                    borderRadius: BorderRadius.circular(16),
-                  ),
-                  child: StreamBuilder<PgAttendance?>(
-                    stream: pgAttendanceService.getUserTodayAttendance(
-                      user.uid,
-                    ),
-                    builder: (context, snapshot) {
-                      final hasMarkedToday = snapshot.data != null;
-                      final attendance = snapshot.data;
-
-                      return Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          // Header
-                          Row(
-                            mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                            children: [
-                              Column(
-                                crossAxisAlignment: CrossAxisAlignment.start,
-                                children: [
-                                  const Text(
-                                    'PG Attendance',
-                                    style: TextStyle(
-                                      fontSize: 20,
-                                      fontWeight: FontWeight.bold,
-                                      color: Colors.white,
-                                    ),
-                                  ),
-                                  const SizedBox(height: 4),
-                                  Text(
-                                    'TODAY • ${DateFormat('MMM dd').format(DateTime.now()).toUpperCase()}',
-                                    style: TextStyle(
-                                      fontSize: 11,
-                                      color: Colors.grey[400],
-                                      fontWeight: FontWeight.w500,
-                                      letterSpacing: 0.5,
-                                    ),
-                                  ),
-                                ],
-                              ),
-                              Icon(
-                                hasMarkedToday
-                                    ? Icons.check_circle
-                                    : Icons.location_on,
-                                size: 48,
-                                color: hasMarkedToday
-                                    ? Colors.green[400]!.withOpacity(0.7)
-                                    : Colors.blue[400]!.withOpacity(0.7),
-                              ),
-                            ],
-                          ),
-                          const SizedBox(height: 20),
-                          // Status or Mark Button
-                          if (hasMarkedToday)
-                            Container(
-                              width: double.infinity,
-                              padding: const EdgeInsets.all(16),
-                              decoration: BoxDecoration(
-                                color: Colors.green.withOpacity(0.2),
-                                borderRadius: BorderRadius.circular(12),
-                                border: Border.all(
-                                  color: Colors.green.withOpacity(0.3),
-                                ),
-                              ),
-                              child: Row(
-                                mainAxisAlignment: MainAxisAlignment.center,
-                                children: [
-                                  Icon(
-                                    Icons.check_circle,
-                                    color: Colors.green[400],
-                                    size: 20,
-                                  ),
-                                  const SizedBox(width: 8),
-                                  Text(
-                                    'Marked at ${DateFormat('h:mm a').format(attendance!.markedAt)}',
-                                    style: TextStyle(
-                                      color: Colors.green[300],
-                                      fontWeight: FontWeight.w600,
-                                      fontSize: 14,
-                                    ),
-                                  ),
-                                ],
-                              ),
-                            )
-                          else
-                            SizedBox(
-                              width: double.infinity,
-                              child: ElevatedButton.icon(
-                                onPressed: _isMarkingAttendance
-                                    ? null
-                                    : () => _markAttendance(context),
-                                icon: _isMarkingAttendance
-                                    ? const SizedBox(
-                                        width: 20,
-                                        height: 20,
-                                        child: CircularProgressIndicator(
-                                          strokeWidth: 2,
-                                          color: Colors.white,
-                                        ),
-                                      )
-                                    : const Icon(Icons.location_on),
-                                label: Text(
-                                  _isMarkingAttendance
-                                      ? 'Marking...'
-                                      : 'MARK ATTENDANCE',
-                                  style: const TextStyle(
-                                    fontWeight: FontWeight.w600,
-                                    letterSpacing: 0.5,
-                                  ),
-                                ),
-                                style: ElevatedButton.styleFrom(
-                                  backgroundColor: Colors.blue[600],
-                                  foregroundColor: Colors.white,
-                                  padding: const EdgeInsets.symmetric(
-                                    vertical: 16,
-                                  ),
-                                  shape: RoundedRectangleBorder(
-                                    borderRadius: BorderRadius.circular(12),
-                                  ),
-                                ),
-                              ),
-                            ),
-                        ],
-                      );
-                    },
-                  ),
-                ),
+            // Banner Carousel
+            Padding(
+              padding: const EdgeInsets.symmetric(horizontal: 20),
+              child: StreamBuilder<List<BannerImage>>(
+                stream: bannerService.streamBanners(),
+                builder: (context, snapshot) {
+                  if (snapshot.hasError) {
+                    debugPrint('Banner stream error: ${snapshot.error}');
+                  }
+                  final banners = snapshot.data ?? [];
+                  return BannerCarousel(banners: banners, height: 180);
+                },
               ),
+            ),
 
             const SizedBox(height: 20),
 
@@ -442,56 +315,6 @@ class _StudentDashboardScreenState extends State<StudentDashboardScreen> {
       backgroundColor: Colors.transparent,
       builder: (context) => MachineBookingSheet(machine: machine),
     );
-  }
-
-  Future<void> _markAttendance(BuildContext context) async {
-    final authService = Provider.of<AuthService>(context, listen: false);
-    final pgAttendanceService = Provider.of<PgAttendanceService>(
-      context,
-      listen: false,
-    );
-    final user = authService.currentUserModel;
-
-    if (user == null) return;
-
-    setState(() {
-      _isMarkingAttendance = true;
-    });
-
-    try {
-      final result = await pgAttendanceService.markAttendance(
-        userId: user.uid,
-        userName: user.fullName,
-        roomNo: user.roomNo ?? '',
-        residenceName: user.residenceName ?? 'Comfort PG',
-      );
-
-      if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text(result.message),
-            backgroundColor: result.success
-                ? Colors.green[700]
-                : Colors.red[700],
-          ),
-        );
-      }
-    } catch (e) {
-      if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text('Failed to mark attendance: $e'),
-            backgroundColor: Colors.red[700],
-          ),
-        );
-      }
-    } finally {
-      if (mounted) {
-        setState(() {
-          _isMarkingAttendance = false;
-        });
-      }
-    }
   }
 
   Widget _buildNoticeCard(Notice notice) {

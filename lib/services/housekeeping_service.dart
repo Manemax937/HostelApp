@@ -1,10 +1,12 @@
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:flutter/foundation.dart';
 import 'package:hostelapp/models/housekeeping_model.dart';
+import 'package:hostelapp/services/notification_service.dart';
 import 'package:hostelapp/utils/app_constants.dart';
 
 class HousekeepingService extends ChangeNotifier {
   final FirebaseFirestore _firestore = FirebaseFirestore.instance;
+  final NotificationService _notificationService = NotificationService();
 
   Future<void> checkIn({
     required String staffId,
@@ -34,14 +36,38 @@ class HousekeepingService extends ChangeNotifier {
         .collection(AppConstants.housekeepingCollection)
         .add(log.toMap());
 
+    // Send notification to all students on this floor
+    await _notificationService.sendFloorCleaningNotification(
+      floor: floor,
+      staffName: staffName,
+    );
+
     notifyListeners();
   }
 
   Future<void> checkOut(String logId) async {
-    await _firestore
+    // Get the log to find the floor number
+    final logDoc = await _firestore
         .collection(AppConstants.housekeepingCollection)
         .doc(logId)
-        .update({'checkOutTime': Timestamp.now()});
+        .get();
+    
+    if (logDoc.exists) {
+      final logData = logDoc.data()!;
+      final floor = logData['floor'] as int;
+      final staffName = logData['staffName'] as String;
+      
+      await _firestore
+          .collection(AppConstants.housekeepingCollection)
+          .doc(logId)
+          .update({'checkOutTime': Timestamp.now()});
+
+      // Send completion notification
+      await _notificationService.sendFloorCleaningCompletedNotification(
+        floor: floor,
+        staffName: staffName,
+      );
+    }
 
     notifyListeners();
   }

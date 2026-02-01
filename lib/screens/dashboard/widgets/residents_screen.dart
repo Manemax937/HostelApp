@@ -516,22 +516,20 @@ class _ResidentsScreenState extends State<ResidentsScreen> {
                         ],
                       ),
                     ),
-                  if (payment != null &&
-                      payment.status == PaymentStatus.pending)
-                    const PopupMenuItem(
-                      value: 'verify_payment',
-                      child: Row(
-                        children: [
-                          Icon(
-                            Icons.check_circle_outline,
-                            size: 18,
-                            color: Colors.green,
-                          ),
-                          SizedBox(width: 8),
-                          Text('Verify Payment'),
-                        ],
-                      ),
+                  const PopupMenuDivider(),
+                  const PopupMenuItem(
+                    value: 'remove',
+                    child: Row(
+                      children: [
+                        Icon(Icons.person_remove, size: 18, color: Colors.red),
+                        SizedBox(width: 8),
+                        Text(
+                          'Remove Student',
+                          style: TextStyle(color: Colors.red),
+                        ),
+                      ],
                     ),
+                  ),
                 ],
               ),
             ],
@@ -649,12 +647,45 @@ class _ResidentsScreenState extends State<ResidentsScreen> {
           ).showSnackBar(SnackBar(content: Text('Calling ${user.phone}...')));
         }
         break;
-      case 'verify_payment':
-        if (payment != null) {
-          _verifyPayment(payment);
-        }
+      case 'remove':
+        _showRemoveStudentDialog(user);
         break;
     }
+  }
+
+  void _showRemoveStudentDialog(UserModel user) {
+    showDialog(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: const Text('Remove Student?'),
+        content: Text(
+          'Are you sure you want to remove ${user.fullName}?\n\nThis action cannot be undone.',
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context),
+            child: const Text('Cancel'),
+          ),
+          ElevatedButton(
+            onPressed: () {
+              Provider.of<AuthService>(
+                context,
+                listen: false,
+              ).deleteUser(user.uid);
+              Navigator.pop(context);
+              ScaffoldMessenger.of(context).showSnackBar(
+                SnackBar(
+                  content: Text('${user.fullName} has been removed'),
+                  backgroundColor: Colors.red,
+                ),
+              );
+            },
+            style: ElevatedButton.styleFrom(backgroundColor: Colors.red),
+            child: const Text('Remove'),
+          ),
+        ],
+      ),
+    );
   }
 
   void _showUserDetailsDialog(UserModel user, PaymentModel? payment) {
@@ -784,18 +815,6 @@ class _ResidentsScreenState extends State<ResidentsScreen> {
             onPressed: () => Navigator.pop(context),
             child: const Text('Close'),
           ),
-          if (payment != null && payment.status == PaymentStatus.pending)
-            ElevatedButton(
-              onPressed: () {
-                Navigator.pop(context);
-                _verifyPayment(payment);
-              },
-              style: ElevatedButton.styleFrom(backgroundColor: Colors.green),
-              child: const Text(
-                'Verify Payment',
-                style: TextStyle(color: Colors.white),
-              ),
-            ),
         ],
       ),
     );
@@ -820,45 +839,6 @@ class _ResidentsScreenState extends State<ResidentsScreen> {
               textAlign: TextAlign.right,
               overflow: TextOverflow.ellipsis,
             ),
-          ),
-        ],
-      ),
-    );
-  }
-
-  void _verifyPayment(PaymentModel payment) {
-    final paymentService = Provider.of<PaymentService>(context, listen: false);
-
-    showDialog(
-      context: context,
-      builder: (context) => AlertDialog(
-        title: const Text('Verify Payment'),
-        content: Text(
-          'Verify payment of ₹${payment.amount.toStringAsFixed(0)} from ${payment.userName}?',
-        ),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(context),
-            child: const Text('Cancel'),
-          ),
-          ElevatedButton(
-            onPressed: () async {
-              Navigator.pop(context);
-              await paymentService.updatePaymentStatus(
-                paymentId: payment.id,
-                status: PaymentStatus.verified,
-              );
-              if (mounted) {
-                ScaffoldMessenger.of(context).showSnackBar(
-                  SnackBar(
-                    content: const Text('Payment verified successfully!'),
-                    backgroundColor: Colors.green[700],
-                  ),
-                );
-              }
-            },
-            style: ElevatedButton.styleFrom(backgroundColor: Colors.green),
-            child: const Text('Verify', style: TextStyle(color: Colors.white)),
           ),
         ],
       ),

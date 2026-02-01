@@ -136,6 +136,7 @@ class RentService {
     required String transactionId,
     String? month,
     String? screenshotUrl,
+    PaymentMethod paymentMethod = PaymentMethod.online,
   }) async {
     final rentMonth = month ?? getCurrentMonth();
 
@@ -152,6 +153,7 @@ class RentService {
       month: rentMonth,
       submittedAt: DateTime.now(),
       screenshotUrl: screenshotUrl,
+      paymentMethod: paymentMethod,
     );
 
     await paymentRef.set(payment.toMap());

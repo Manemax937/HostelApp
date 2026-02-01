@@ -773,16 +773,22 @@ class _StudentFinanceScreenState extends State<StudentFinanceScreen> {
       ),
       child: Row(
         children: [
-          // Icon
+          // Icon - different for cash vs online
           Container(
             padding: const EdgeInsets.all(10),
             decoration: BoxDecoration(
-              color: Colors.grey[100],
+              color: payment.paymentMethod == PaymentMethod.cash
+                  ? Colors.green[50]
+                  : Colors.grey[100],
               borderRadius: BorderRadius.circular(8),
             ),
             child: Icon(
-              Icons.credit_card_outlined,
-              color: Colors.grey[600],
+              payment.paymentMethod == PaymentMethod.cash
+                  ? Icons.payments_outlined
+                  : Icons.credit_card_outlined,
+              color: payment.paymentMethod == PaymentMethod.cash
+                  ? Colors.green[600]
+                  : Colors.grey[600],
               size: 20,
             ),
           ),
@@ -801,14 +807,30 @@ class _StudentFinanceScreenState extends State<StudentFinanceScreen> {
                   ),
                 ),
                 const SizedBox(height: 4),
-                Text(
-                  'RENT • ${payment.month}',
-                  style: TextStyle(
-                    fontSize: 11,
-                    fontWeight: FontWeight.w500,
-                    color: Colors.grey[600],
-                  ),
-                  overflow: TextOverflow.ellipsis,
+                Row(
+                  children: [
+                    Text(
+                      payment.paymentMethod == PaymentMethod.cash
+                          ? 'CASH'
+                          : 'ONLINE',
+                      style: TextStyle(
+                        fontSize: 10,
+                        fontWeight: FontWeight.w600,
+                        color: payment.paymentMethod == PaymentMethod.cash
+                            ? Colors.green[600]
+                            : Colors.blue[600],
+                      ),
+                    ),
+                    Text(
+                      ' • ${payment.month}',
+                      style: TextStyle(
+                        fontSize: 11,
+                        fontWeight: FontWeight.w500,
+                        color: Colors.grey[600],
+                      ),
+                      overflow: TextOverflow.ellipsis,
+                    ),
+                  ],
                 ),
               ],
             ),
@@ -839,6 +861,7 @@ class _StudentFinanceScreenState extends State<StudentFinanceScreen> {
 
   void _showPaymentDialog(BuildContext context, RentDue rentDue, dynamic user) {
     _transactionIdController.clear();
+    PaymentMethod selectedPaymentMethod = PaymentMethod.online;
 
     showModalBottomSheet(
       context: context,
@@ -856,195 +879,369 @@ class _StudentFinanceScreenState extends State<StudentFinanceScreen> {
                 color: Colors.white,
                 borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
               ),
-              child: Column(
-                mainAxisSize: MainAxisSize.min,
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Row(
-                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                    children: [
-                      const Text(
-                        'Submit Payment',
-                        style: TextStyle(
-                          fontSize: 20,
-                          fontWeight: FontWeight.bold,
-                        ),
-                      ),
-                      GestureDetector(
-                        onTap: () => Navigator.pop(context),
-                        child: Container(
-                          padding: const EdgeInsets.all(8),
-                          decoration: BoxDecoration(
-                            color: Colors.grey[100],
-                            shape: BoxShape.circle,
-                          ),
-                          child: Icon(
-                            Icons.close,
-                            color: Colors.grey[600],
-                            size: 20,
-                          ),
-                        ),
-                      ),
-                    ],
-                  ),
-                  const SizedBox(height: 8),
-                  Text(
-                    'Rent for ${rentDue.month}',
-                    style: TextStyle(fontSize: 13, color: Colors.grey[600]),
-                  ),
-                  const SizedBox(height: 24),
-
-                  // Amount Display
-                  Container(
-                    width: double.infinity,
-                    padding: const EdgeInsets.all(16),
-                    decoration: BoxDecoration(
-                      color: Colors.blue[50],
-                      borderRadius: BorderRadius.circular(12),
-                    ),
-                    child: Column(
+              child: SingleChildScrollView(
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Row(
+                      mainAxisAlignment: MainAxisAlignment.spaceBetween,
                       children: [
-                        Text(
-                          'Amount to Pay',
+                        const Text(
+                          'Submit Payment',
                           style: TextStyle(
-                            fontSize: 12,
-                            color: Colors.blue[700],
+                            fontSize: 20,
+                            fontWeight: FontWeight.bold,
                           ),
                         ),
-                        const SizedBox(height: 4),
-                        Text(
-                          '₹${rentDue.amount.toStringAsFixed(0)}',
-                          style: TextStyle(
-                            fontSize: 32,
-                            fontWeight: FontWeight.bold,
-                            color: Colors.blue[900],
+                        GestureDetector(
+                          onTap: () => Navigator.pop(context),
+                          child: Container(
+                            padding: const EdgeInsets.all(8),
+                            decoration: BoxDecoration(
+                              color: Colors.grey[100],
+                              shape: BoxShape.circle,
+                            ),
+                            child: Icon(
+                              Icons.close,
+                              color: Colors.grey[600],
+                              size: 20,
+                            ),
                           ),
                         ),
                       ],
                     ),
-                  ),
-                  const SizedBox(height: 20),
+                    const SizedBox(height: 8),
+                    Text(
+                      'Rent for ${rentDue.month}',
+                      style: TextStyle(fontSize: 13, color: Colors.grey[600]),
+                    ),
+                    const SizedBox(height: 24),
 
-                  // Transaction ID Input
-                  TextField(
-                    controller: _transactionIdController,
-                    decoration: InputDecoration(
-                      labelText: 'Transaction ID / UTR Number',
-                      hintText: 'Enter your payment reference',
-                      border: OutlineInputBorder(
+                    // Amount Display
+                    Container(
+                      width: double.infinity,
+                      padding: const EdgeInsets.all(16),
+                      decoration: BoxDecoration(
+                        color: Colors.blue[50],
                         borderRadius: BorderRadius.circular(12),
                       ),
-                      filled: true,
-                      fillColor: Colors.grey[50],
-                      prefixIcon: const Icon(Icons.receipt_long),
+                      child: Column(
+                        children: [
+                          Text(
+                            'Amount to Pay',
+                            style: TextStyle(
+                              fontSize: 12,
+                              color: Colors.blue[700],
+                            ),
+                          ),
+                          const SizedBox(height: 4),
+                          Text(
+                            '₹${rentDue.amount.toStringAsFixed(0)}',
+                            style: TextStyle(
+                              fontSize: 32,
+                              fontWeight: FontWeight.bold,
+                              color: Colors.blue[900],
+                            ),
+                          ),
+                        ],
+                      ),
                     ),
-                  ),
-                  const SizedBox(height: 12),
-                  Text(
-                    'Enter the transaction ID or UTR number from your payment app',
-                    style: TextStyle(fontSize: 11, color: Colors.grey[500]),
-                  ),
-                  const SizedBox(height: 24),
+                    const SizedBox(height: 20),
 
-                  // Submit Button
-                  SizedBox(
-                    width: double.infinity,
-                    child: ElevatedButton(
-                      onPressed: _isSubmitting
-                          ? null
-                          : () async {
-                              if (_transactionIdController.text
-                                  .trim()
-                                  .isEmpty) {
-                                ScaffoldMessenger.of(context).showSnackBar(
-                                  const SnackBar(
-                                    content: Text(
-                                      'Please enter transaction ID',
-                                    ),
-                                    backgroundColor: Colors.red,
-                                  ),
-                                );
-                                return;
-                              }
-
+                    // Payment Method Selection
+                    Text(
+                      'PAYMENT METHOD',
+                      style: TextStyle(
+                        fontSize: 11,
+                        fontWeight: FontWeight.w600,
+                        color: Colors.grey[600],
+                        letterSpacing: 0.5,
+                      ),
+                    ),
+                    const SizedBox(height: 12),
+                    Row(
+                      children: [
+                        Expanded(
+                          child: GestureDetector(
+                            onTap: () {
                               setSheetState(() {
-                                _isSubmitting = true;
+                                selectedPaymentMethod = PaymentMethod.online;
                               });
+                            },
+                            child: Container(
+                              padding: const EdgeInsets.symmetric(vertical: 14),
+                              decoration: BoxDecoration(
+                                color:
+                                    selectedPaymentMethod ==
+                                        PaymentMethod.online
+                                    ? const Color(0xFF1a1a2e)
+                                    : Colors.grey[50],
+                                borderRadius: BorderRadius.circular(10),
+                                border: Border.all(
+                                  color:
+                                      selectedPaymentMethod ==
+                                          PaymentMethod.online
+                                      ? const Color(0xFF1a1a2e)
+                                      : Colors.grey[300]!,
+                                ),
+                              ),
+                              child: Row(
+                                mainAxisAlignment: MainAxisAlignment.center,
+                                children: [
+                                  Icon(
+                                    Icons.phone_android,
+                                    size: 18,
+                                    color:
+                                        selectedPaymentMethod ==
+                                            PaymentMethod.online
+                                        ? Colors.white
+                                        : Colors.grey[600],
+                                  ),
+                                  const SizedBox(width: 8),
+                                  Text(
+                                    'Online',
+                                    style: TextStyle(
+                                      fontSize: 13,
+                                      fontWeight: FontWeight.w600,
+                                      color:
+                                          selectedPaymentMethod ==
+                                              PaymentMethod.online
+                                          ? Colors.white
+                                          : Colors.grey[700],
+                                    ),
+                                  ),
+                                ],
+                              ),
+                            ),
+                          ),
+                        ),
+                        const SizedBox(width: 12),
+                        Expanded(
+                          child: GestureDetector(
+                            onTap: () {
+                              setSheetState(() {
+                                selectedPaymentMethod = PaymentMethod.cash;
+                              });
+                            },
+                            child: Container(
+                              padding: const EdgeInsets.symmetric(vertical: 14),
+                              decoration: BoxDecoration(
+                                color:
+                                    selectedPaymentMethod == PaymentMethod.cash
+                                    ? const Color(0xFF1a1a2e)
+                                    : Colors.grey[50],
+                                borderRadius: BorderRadius.circular(10),
+                                border: Border.all(
+                                  color:
+                                      selectedPaymentMethod ==
+                                          PaymentMethod.cash
+                                      ? const Color(0xFF1a1a2e)
+                                      : Colors.grey[300]!,
+                                ),
+                              ),
+                              child: Row(
+                                mainAxisAlignment: MainAxisAlignment.center,
+                                children: [
+                                  Icon(
+                                    Icons.payments_outlined,
+                                    size: 18,
+                                    color:
+                                        selectedPaymentMethod ==
+                                            PaymentMethod.cash
+                                        ? Colors.white
+                                        : Colors.grey[600],
+                                  ),
+                                  const SizedBox(width: 8),
+                                  Text(
+                                    'Cash',
+                                    style: TextStyle(
+                                      fontSize: 13,
+                                      fontWeight: FontWeight.w600,
+                                      color:
+                                          selectedPaymentMethod ==
+                                              PaymentMethod.cash
+                                          ? Colors.white
+                                          : Colors.grey[700],
+                                    ),
+                                  ),
+                                ],
+                              ),
+                            ),
+                          ),
+                        ),
+                      ],
+                    ),
+                    const SizedBox(height: 20),
 
-                              try {
-                                await _rentService.submitRentPayment(
-                                  userId: user.uid,
-                                  userName: user.fullName,
-                                  roomNo: user.roomNo ?? '',
-                                  residenceName: user.residenceName ?? '',
-                                  amount: rentDue.amount,
-                                  transactionId: _transactionIdController.text
-                                      .trim(),
-                                  month: rentDue.month,
-                                );
+                    // Transaction ID Input (only for online payments)
+                    if (selectedPaymentMethod == PaymentMethod.online) ...[
+                      TextField(
+                        controller: _transactionIdController,
+                        decoration: InputDecoration(
+                          labelText: 'Transaction ID / UTR Number',
+                          hintText: 'Enter your payment reference',
+                          border: OutlineInputBorder(
+                            borderRadius: BorderRadius.circular(12),
+                          ),
+                          filled: true,
+                          fillColor: Colors.grey[50],
+                          prefixIcon: const Icon(Icons.receipt_long),
+                        ),
+                      ),
+                      const SizedBox(height: 12),
+                      Text(
+                        'Enter the transaction ID or UTR number from your payment app',
+                        style: TextStyle(fontSize: 11, color: Colors.grey[500]),
+                      ),
+                    ] else ...[
+                      Container(
+                        width: double.infinity,
+                        padding: const EdgeInsets.all(16),
+                        decoration: BoxDecoration(
+                          color: Colors.green[50],
+                          borderRadius: BorderRadius.circular(12),
+                          border: Border.all(color: Colors.green[200]!),
+                        ),
+                        child: Row(
+                          children: [
+                            Icon(
+                              Icons.info_outline,
+                              color: Colors.green[700],
+                              size: 20,
+                            ),
+                            const SizedBox(width: 12),
+                            Expanded(
+                              child: Text(
+                                'Cash payment will be submitted for owner verification. Make sure you have paid in cash.',
+                                style: TextStyle(
+                                  fontSize: 12,
+                                  color: Colors.green[700],
+                                  height: 1.4,
+                                ),
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+                    ],
+                    const SizedBox(height: 24),
 
-                                if (mounted) {
-                                  Navigator.pop(context);
+                    // Submit Button
+                    SizedBox(
+                      width: double.infinity,
+                      child: ElevatedButton(
+                        onPressed: _isSubmitting
+                            ? null
+                            : () async {
+                                // For online payments, transaction ID is required
+                                if (selectedPaymentMethod ==
+                                        PaymentMethod.online &&
+                                    _transactionIdController.text
+                                        .trim()
+                                        .isEmpty) {
+                                  ScaffoldMessenger.of(context).showSnackBar(
+                                    const SnackBar(
+                                      content: Text(
+                                        'Please enter transaction ID',
+                                      ),
+                                      backgroundColor: Colors.red,
+                                    ),
+                                  );
+                                  return;
+                                }
+
+                                setSheetState(() {
+                                  _isSubmitting = true;
+                                });
+
+                                try {
+                                  // Generate transaction ID for cash payments
+                                  final transactionId =
+                                      selectedPaymentMethod ==
+                                          PaymentMethod.cash
+                                      ? 'CASH-${DateTime.now().millisecondsSinceEpoch}'
+                                      : _transactionIdController.text.trim();
+
+                                  await _rentService.submitRentPayment(
+                                    userId: user.uid,
+                                    userName: user.fullName,
+                                    roomNo: user.roomNo ?? '',
+                                    residenceName: user.residenceName ?? '',
+                                    amount: rentDue.amount,
+                                    transactionId: transactionId,
+                                    month: rentDue.month,
+                                    paymentMethod: selectedPaymentMethod,
+                                  );
+
+                                  if (mounted) {
+                                    Navigator.pop(context);
+                                    ScaffoldMessenger.of(context).showSnackBar(
+                                      SnackBar(
+                                        content: Text(
+                                          selectedPaymentMethod ==
+                                                  PaymentMethod.cash
+                                              ? 'Cash payment submitted for verification'
+                                              : 'Payment submitted for verification',
+                                        ),
+                                        backgroundColor: Colors.green[700],
+                                      ),
+                                    );
+                                  }
+                                } catch (e) {
+                                  setSheetState(() {
+                                    _isSubmitting = false;
+                                  });
                                   ScaffoldMessenger.of(context).showSnackBar(
                                     SnackBar(
-                                      content: const Text(
-                                        'Payment submitted for verification',
-                                      ),
-                                      backgroundColor: Colors.green[700],
+                                      content: Text('Error: $e'),
+                                      backgroundColor: Colors.red,
                                     ),
                                   );
                                 }
-                              } catch (e) {
-                                setSheetState(() {
-                                  _isSubmitting = false;
-                                });
-                                ScaffoldMessenger.of(context).showSnackBar(
-                                  SnackBar(
-                                    content: Text('Error: $e'),
-                                    backgroundColor: Colors.red,
-                                  ),
-                                );
-                              }
-                            },
-                      style: ElevatedButton.styleFrom(
-                        backgroundColor: const Color(0xFF1a1a2e),
-                        foregroundColor: Colors.white,
-                        padding: const EdgeInsets.symmetric(vertical: 16),
-                        shape: RoundedRectangleBorder(
-                          borderRadius: BorderRadius.circular(10),
+                              },
+                        style: ElevatedButton.styleFrom(
+                          backgroundColor: const Color(0xFF1a1a2e),
+                          foregroundColor: Colors.white,
+                          padding: const EdgeInsets.symmetric(vertical: 16),
+                          shape: RoundedRectangleBorder(
+                            borderRadius: BorderRadius.circular(10),
+                          ),
+                          disabledBackgroundColor: Colors.grey[400],
                         ),
-                        disabledBackgroundColor: Colors.grey[400],
-                      ),
-                      child: _isSubmitting
-                          ? const SizedBox(
-                              width: 20,
-                              height: 20,
-                              child: CircularProgressIndicator(
-                                strokeWidth: 2,
-                                color: Colors.white,
+                        child: _isSubmitting
+                            ? const SizedBox(
+                                width: 20,
+                                height: 20,
+                                child: CircularProgressIndicator(
+                                  strokeWidth: 2,
+                                  color: Colors.white,
+                                ),
+                              )
+                            : Text(
+                                selectedPaymentMethod == PaymentMethod.cash
+                                    ? 'CONFIRM CASH PAYMENT'
+                                    : 'SUBMIT PAYMENT',
+                                style: const TextStyle(
+                                  fontSize: 14,
+                                  fontWeight: FontWeight.w600,
+                                  letterSpacing: 0.5,
+                                ),
                               ),
-                            )
-                          : const Text(
-                              'SUBMIT PAYMENT',
-                              style: TextStyle(
-                                fontSize: 14,
-                                fontWeight: FontWeight.w600,
-                                letterSpacing: 0.5,
-                              ),
-                            ),
-                    ),
-                  ),
-                  const SizedBox(height: 12),
-                  Center(
-                    child: TextButton(
-                      onPressed: () => Navigator.pop(context),
-                      child: Text(
-                        'Cancel',
-                        style: TextStyle(color: Colors.grey[600]),
                       ),
                     ),
-                  ),
-                ],
+                    const SizedBox(height: 12),
+                    Center(
+                      child: TextButton(
+                        onPressed: () => Navigator.pop(context),
+                        child: Text(
+                          'Cancel',
+                          style: TextStyle(color: Colors.grey[600]),
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
               ),
             ),
           );

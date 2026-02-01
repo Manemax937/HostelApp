@@ -2,6 +2,8 @@ import 'package:cloud_firestore/cloud_firestore.dart';
 
 enum PaymentStatus { pending, verified, rejected }
 
+enum PaymentMethod { online, cash }
+
 class PaymentModel {
   final String id;
   final String userId;
@@ -15,6 +17,7 @@ class PaymentModel {
   final DateTime? verifiedAt;
   final String? adminNote;
   final String month; // Format: "Jan 2026"
+  final PaymentMethod paymentMethod; // online or cash
 
   PaymentModel({
     required this.id,
@@ -29,6 +32,7 @@ class PaymentModel {
     this.verifiedAt,
     this.adminNote,
     required this.month,
+    this.paymentMethod = PaymentMethod.online,
   });
 
   factory PaymentModel.fromMap(Map<String, dynamic> map, String id) {
@@ -50,6 +54,10 @@ class PaymentModel {
           : null,
       adminNote: map['adminNote'],
       month: map['month'] ?? '',
+      paymentMethod: PaymentMethod.values.firstWhere(
+        (e) => e.toString() == 'PaymentMethod.${map['paymentMethod']}',
+        orElse: () => PaymentMethod.online,
+      ),
     );
   }
 
@@ -66,6 +74,7 @@ class PaymentModel {
       'verifiedAt': verifiedAt != null ? Timestamp.fromDate(verifiedAt!) : null,
       'adminNote': adminNote,
       'month': month,
+      'paymentMethod': paymentMethod.toString().split('.').last,
     };
   }
 
@@ -82,6 +91,7 @@ class PaymentModel {
     DateTime? verifiedAt,
     String? adminNote,
     String? month,
+    PaymentMethod? paymentMethod,
   }) {
     return PaymentModel(
       id: id ?? this.id,
@@ -96,6 +106,7 @@ class PaymentModel {
       verifiedAt: verifiedAt ?? this.verifiedAt,
       adminNote: adminNote ?? this.adminNote,
       month: month ?? this.month,
+      paymentMethod: paymentMethod ?? this.paymentMethod,
     );
   }
 }

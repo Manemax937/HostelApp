@@ -2,6 +2,9 @@ class AppConstants {
   // App Info
   static const String appName = 'Comfort PG';
   static const String appSubtitle = 'RESIDENT OPERATING SYSTEM';
+  
+  // Hostel Name (Single hostel mode)
+  static const String hostelName = 'Comfort PG';
 
   // Washing Machines
   static const int totalMachines = 2;

@@ -89,6 +89,14 @@ service cloud.firestore {
       allow delete: if isAdminOrOwner();
     }
     
+    // Housekeeping Logs collection (for staff check-in/check-out)
+    match /housekeeping_logs/{logId} {
+      allow read: if isSignedIn();
+      allow create: if isSignedIn();
+      allow update: if isSignedIn();
+      allow delete: if isAdminOrOwner();
+    }
+    
     // Notices collection
     match /notices/{noticeId} {
       allow read: if isSignedIn();
@@ -110,6 +118,22 @@ service cloud.firestore {
       allow read: if isSignedIn();
       allow create: if isSignedIn();
       allow update: if isSignedIn(); // Users can mark as read
+      allow delete: if isAdminOrOwner();
+    }
+
+    // App Config collection (for floor configuration etc.)
+    match /app_config/{configId} {
+      allow read: if isSignedIn();
+      allow create: if isAdminOrOwner();
+      allow update: if isAdminOrOwner();
+      allow delete: if isAdminOrOwner();
+    }
+
+    // Banners collection (for advertisement carousel)
+    match /banners/{bannerId} {
+      allow read: if isSignedIn();
+      allow create: if isAdminOrOwner();
+      allow update: if isAdminOrOwner();
       allow delete: if isAdminOrOwner();
     }
   }

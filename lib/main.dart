@@ -13,6 +13,7 @@ import 'package:hostelapp/services/housekeeping_service.dart';
 import 'package:hostelapp/services/notification_service.dart';
 import 'package:hostelapp/services/notice_service.dart';
 import 'package:hostelapp/services/pg_attendance_service.dart';
+import 'package:hostelapp/services/banner_service.dart';
 import 'package:hostelapp/screens/auth/auth_screen.dart';
 import 'package:hostelapp/screens/home/home_wrapper.dart';
 import 'package:hostelapp/utils/app_theme.dart';
@@ -51,6 +52,7 @@ class MyApp extends StatelessWidget {
         ChangeNotifierProvider(create: (_) => HousekeepingService()),
         ChangeNotifierProvider(create: (_) => NoticeService()),
         ChangeNotifierProvider(create: (_) => PgAttendanceService()),
+        ChangeNotifierProvider(create: (_) => BannerService()),
       ],
       child: MaterialApp(
         title: AppConstants.appName,
