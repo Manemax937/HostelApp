@@ -126,11 +126,13 @@ class _GoogleRegistrationScreenState extends State<GoogleRegistrationScreen> {
                     ? () {}
                     : () {
                         if (_selectedRole == 'owner') {
+                          // Navigate to owner registration (pending approval)
                           Navigator.of(context).pushReplacement(
                             MaterialPageRoute(
-                              builder: (context) => const _OwnerDetailsScreen(),
+                              builder: (context) => const _OwnerPendingScreen(),
                             ),
                           );
+                          return;
                         } else if (_selectedRole == 'housekeeper') {
                           Navigator.of(context).pushReplacement(
                             MaterialPageRoute(
@@ -230,7 +232,195 @@ class _RoleCard extends StatelessWidget {
   }
 }
 
-// Owner details screen
+// Owner pending approval screen - creates owner with isActive: false
+class _OwnerPendingScreen extends StatefulWidget {
+  const _OwnerPendingScreen();
+
+  @override
+  State<_OwnerPendingScreen> createState() => _OwnerPendingScreenState();
+}
+
+class _OwnerPendingScreenState extends State<_OwnerPendingScreen> {
+  final _formKey = GlobalKey<FormState>();
+  final _nameController = TextEditingController();
+  bool _isLoading = false;
+  bool _registrationComplete = false;
+
+  @override
+  void initState() {
+    super.initState();
+    // Pre-fill name from Google account
+    final authService = Provider.of<AuthService>(context, listen: false);
+    _nameController.text = authService.currentUser?.displayName ?? '';
+  }
+
+  @override
+  void dispose() {
+    _nameController.dispose();
+    super.dispose();
+  }
+
+  Future<void> _register() async {
+    if (!_formKey.currentState!.validate()) return;
+
+    setState(() => _isLoading = true);
+
+    try {
+      final authService = Provider.of<AuthService>(context, listen: false);
+
+      // Create owner account with pending status (isActive: false)
+      await authService.completeGoogleOwnerRegistration(
+        fullName: _nameController.text.trim(),
+      );
+
+      // Sign out - owner can't use app until admin approves
+      await authService.signOutFromGoogle();
+
+      setState(() => _registrationComplete = true);
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text(e.toString()),
+            backgroundColor: AppTheme.errorColor,
+          ),
+        );
+      }
+    } finally {
+      if (mounted) setState(() => _isLoading = false);
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    if (_registrationComplete) {
+      return Scaffold(
+        backgroundColor: AppTheme.backgroundColor,
+        body: SafeArea(
+          child: Padding(
+            padding: const EdgeInsets.all(24),
+            child: Column(
+              mainAxisAlignment: MainAxisAlignment.center,
+              children: [
+                Container(
+                  padding: const EdgeInsets.all(24),
+                  decoration: BoxDecoration(
+                    color: Colors.orange.withOpacity(0.1),
+                    shape: BoxShape.circle,
+                  ),
+                  child: const Icon(
+                    Icons.hourglass_top,
+                    size: 64,
+                    color: Colors.orange,
+                  ),
+                ),
+                const SizedBox(height: 24),
+                Text(
+                  'Account Created!',
+                  style: Theme.of(context).textTheme.headlineSmall?.copyWith(
+                    fontWeight: FontWeight.bold,
+                  ),
+                ),
+                const SizedBox(height: 12),
+                const Text(
+                  'Your owner account has been created and is pending admin approval.',
+                  textAlign: TextAlign.center,
+                  style: TextStyle(color: Colors.grey, fontSize: 16),
+                ),
+                const SizedBox(height: 8),
+                const Text(
+                  'You can sign in once approved.',
+                  textAlign: TextAlign.center,
+                  style: TextStyle(color: Colors.grey),
+                ),
+                const SizedBox(height: 32),
+                CustomButton(
+                  text: 'BACK TO LOGIN',
+                  onPressed: () {
+                    Navigator.of(context).popUntil((route) => route.isFirst);
+                  },
+                ),
+              ],
+            ),
+          ),
+        ),
+      );
+    }
+
+    return Scaffold(
+      backgroundColor: AppTheme.backgroundColor,
+      appBar: AppBar(
+        backgroundColor: Colors.transparent,
+        elevation: 0,
+        leading: IconButton(
+          icon: const Icon(Icons.arrow_back),
+          onPressed: () async {
+            final authService = Provider.of<AuthService>(
+              context,
+              listen: false,
+            );
+            await authService.signOutFromGoogle();
+            if (context.mounted) Navigator.of(context).pop();
+          },
+        ),
+        title: const Text('PG Owner Registration'),
+      ),
+      body: SafeArea(
+        child: Padding(
+          padding: const EdgeInsets.all(24),
+          child: Form(
+            key: _formKey,
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.stretch,
+              children: [
+                const Icon(
+                  Icons.admin_panel_settings,
+                  size: 64,
+                  color: Colors.orange,
+                ),
+                const SizedBox(height: 16),
+                const Text(
+                  'Owner Registration',
+                  textAlign: TextAlign.center,
+                  style: TextStyle(
+                    fontSize: 24,
+                    fontWeight: FontWeight.bold,
+                  ),
+                ),
+                const SizedBox(height: 8),
+                const Text(
+                  'Your account will require admin approval before you can access the app.',
+                  textAlign: TextAlign.center,
+                  style: TextStyle(color: Colors.grey),
+                ),
+                const SizedBox(height: 32),
+                CustomTextField(
+                  controller: _nameController,
+                  label: 'Full Name',
+                  hint: 'Enter your full name',
+                  prefixIcon: const Icon(Icons.person_outline),
+                  validator: (value) {
+                    if (value == null || value.isEmpty) {
+                      return 'Please enter your full name';
+                    }
+                    return null;
+                  },
+                ),
+                const SizedBox(height: 24),
+                CustomButton(
+                  text: _isLoading ? 'CREATING ACCOUNT...' : 'SUBMIT REQUEST',
+                  onPressed: _isLoading ? () {} : _register,
+                ),
+              ],
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+// Owner details screen (legacy - with verification code)
 class _OwnerDetailsScreen extends StatefulWidget {
   const _OwnerDetailsScreen();
 

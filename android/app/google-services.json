@@ -7,6 +7,50 @@
   "client": [
     {
       "client_info": {
+        "mobilesdk_app_id": "1:419070017648:android:1ae59052791924bcb374b5",
+        "android_client_info": {
+          "package_name": "com.comfortpg.hostelapp"
+        }
+      },
+      "oauth_client": [
+        {
+          "client_id": "419070017648-r78jt05aq0m1kn90805iqdo7r8qu40ov.apps.googleusercontent.com",
+          "client_type": 1,
+          "android_info": {
+            "package_name": "com.comfortpg.hostelapp",
+            "certificate_hash": "6a08164d69e55b3fc9b498cd3ef9fba01ae5e85f"
+          }
+        },
+        {
+          "client_id": "419070017648-rgtse87h42jbdmchk1k832g3b26dbb80.apps.googleusercontent.com",
+          "client_type": 3
+        }
+      ],
+      "api_key": [
+        {
+          "current_key": "AIzaSyCLhx2-acnLkqwaXwweNhaBm6CKQVfNEnc"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": [
+            {
+              "client_id": "419070017648-rgtse87h42jbdmchk1k832g3b26dbb80.apps.googleusercontent.com",
+              "client_type": 3
+            },
+            {
+              "client_id": "419070017648-0fli3ku8bp4gdrh9kk9022m5cf50r3b4.apps.googleusercontent.com",
+              "client_type": 2,
+              "ios_info": {
+                "bundle_id": "com.example.hostelapp"
+              }
+            }
+          ]
+        }
+      }
+    },
+    {
+      "client_info": {
         "mobilesdk_app_id": "1:419070017648:android:c796a3c3d87e724cb374b5",
         "android_client_info": {
           "package_name": "com.example.hostelapp"

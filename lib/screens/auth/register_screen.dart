@@ -36,7 +36,55 @@ class _RegisterScreenState extends State<RegisterScreen> {
     super.dispose();
   }
 
-  Future<void> _register() async {
+  void _showOwnerContactDialog({bool requestSubmitted = false}) {
+    showDialog(
+      context: context,
+      builder: (context) => AlertDialog(
+        shape: RoundedRectangleBorder(
+          borderRadius: BorderRadius.circular(16),
+        ),
+        title: Row(
+          children: [
+            Icon(
+              requestSubmitted ? Icons.check_circle : Icons.admin_panel_settings,
+              color: requestSubmitted ? Colors.green : Colors.blue,
+            ),
+            const SizedBox(width: 12),
+            Expanded(
+              child: Text(requestSubmitted ? 'Request Submitted' : 'Owner Registration'),
+            ),
+          ],
+        ),
+        content: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text(
+              requestSubmitted
+                  ? 'Your owner account has been created.'
+                  : 'Owner registration requires admin approval.',
+              style: const TextStyle(fontSize: 16),
+            ),
+            const SizedBox(height: 12),
+            Text(
+              requestSubmitted
+                  ? 'Your account is pending admin approval. You can sign in once approved.'
+                  : 'Please contact the operator to get owner access.',
+              style: const TextStyle(color: Colors.grey),
+            ),
+          ],
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context),
+            child: const Text('OK'),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Future<void> _submitOwnerRequest() async {
     if (!_formKey.currentState!.validate()) return;
 
     setState(() => _isLoading = true);
@@ -44,26 +92,48 @@ class _RegisterScreenState extends State<RegisterScreen> {
     try {
       final authService = Provider.of<AuthService>(context, listen: false);
 
-      if (_userType == 'owner') {
-        await authService.registerOwner(
-          email: _emailController.text.trim(),
-          password: _passwordController.text,
-          fullName: _nameController.text.trim(),
-        );
+      await authService.submitOwnerRequest(
+        email: _emailController.text.trim(),
+        password: _passwordController.text,
+        fullName: _nameController.text.trim(),
+      );
 
-        // Owner stays signed in and will see verification screen
-        if (mounted) {
-          ScaffoldMessenger.of(context).showSnackBar(
-            const SnackBar(
-              content: Text(
-                'Registration successful! Please verify your account with the code sent to your email.',
-              ),
-              backgroundColor: AppTheme.successColor,
-              duration: Duration(seconds: 5),
-            ),
-          );
-        }
-      } else if (_userType == 'housekeeper') {
+      if (mounted) {
+        setState(() => _isLoading = false);
+        _showOwnerContactDialog(requestSubmitted: true);
+        // Clear the form
+        _nameController.clear();
+        _emailController.clear();
+        _passwordController.clear();
+      }
+    } catch (e) {
+      if (mounted) {
+        setState(() => _isLoading = false);
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text(e.toString()),
+            backgroundColor: AppTheme.errorColor,
+          ),
+        );
+      }
+    }
+  }
+
+  Future<void> _register() async {
+    if (!_formKey.currentState!.validate()) return;
+
+    // Submit owner request for admin approval
+    if (_userType == 'owner') {
+      await _submitOwnerRequest();
+      return;
+    }
+
+    setState(() => _isLoading = true);
+
+    try {
+      final authService = Provider.of<AuthService>(context, listen: false);
+
+      if (_userType == 'housekeeper') {
         await authService.registerHousekeeper(
           email: _emailController.text.trim(),
           password: _passwordController.text,

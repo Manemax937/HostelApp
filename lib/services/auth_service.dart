@@ -137,6 +137,48 @@ class AuthService extends ChangeNotifier {
     }
   }
 
+  // Register owner with pending status - admin approves by setting isActive to true in Firebase Console
+  Future<void> submitOwnerRequest({
+    required String email,
+    required String password,
+    required String fullName,
+  }) async {
+    try {
+      // Create the Firebase Auth account
+      final credential = await _auth.createUserWithEmailAndPassword(
+        email: email,
+        password: password,
+      );
+
+      // Create owner document with isActive: false (pending approval)
+      final userModel = UserModel(
+        uid: credential.user!.uid,
+        fullName: fullName,
+        email: email,
+        role: UserRole.owner,
+        residenceName: AppConstants.hostelName,
+        createdAt: DateTime.now(),
+        isActive: false, // Pending admin approval - toggle to true in Firebase Console
+        isVerified: true, // No email verification needed for owners
+      );
+
+      await _firestore
+          .collection(AppConstants.usersCollection)
+          .doc(credential.user!.uid)
+          .set(userModel.toMap());
+
+      // Sign out - owner can't use app until admin approves
+      await _auth.signOut();
+
+      debugPrint('Owner registered with pending status: $email');
+    } on FirebaseAuthException catch (e) {
+      throw _handleAuthException(e);
+    } catch (e) {
+      debugPrint('Error registering owner: $e');
+      rethrow;
+    }
+  }
+
   Future<UserCredential> registerOwner({
     required String email,
     required String password,
@@ -375,14 +417,14 @@ class AuthService extends ChangeNotifier {
     }
   }
 
-  /// Complete Google registration for owner
+  /// Complete Google registration for owner (pending admin approval)
   Future<void> completeGoogleOwnerRegistration({
     required String fullName,
   }) async {
     if (currentUser == null) throw 'Please sign in first';
 
-    // Create owner document in Firestore
-    // Note: Cloud Function will generate and send verification code
+    // Create owner document with pending status (isActive: false)
+    // Admin approves by setting isActive to true in Firebase Console
     final userModel = UserModel(
       uid: currentUser!.uid,
       fullName: fullName,
@@ -390,8 +432,8 @@ class AuthService extends ChangeNotifier {
       role: UserRole.owner,
       residenceName: AppConstants.hostelName,
       createdAt: DateTime.now(),
-      isActive: false,
-      isVerified: false,
+      isActive: false, // Pending admin approval - toggle to true in Firebase Console
+      isVerified: true, // No email verification needed for Google accounts
     );
 
     await _firestore
@@ -554,6 +596,61 @@ class AuthService extends ChangeNotifier {
               .map((doc) => UserModel.fromMap(doc.data(), doc.id))
               .toList(),
         );
+  }
+
+  // Get pending owner requests
+  Stream<List<Map<String, dynamic>>> getPendingOwnerRequests() {
+    return _firestore
+        .collection('owner_requests')
+        .where('status', isEqualTo: 'pending')
+        .orderBy('requestedAt', descending: true)
+        .snapshots()
+        .map((snapshot) => snapshot.docs.map((doc) {
+              final data = doc.data();
+              data['id'] = doc.id;
+              return data;
+            }).toList());
+  }
+
+  // Approve owner request
+  Future<void> approveOwnerRequest(String requestId) async {
+    final doc = await _firestore.collection('owner_requests').doc(requestId).get();
+    if (!doc.exists) throw 'Request not found';
+
+    final data = doc.data()!;
+    
+    // Update request status
+    await _firestore.collection('owner_requests').doc(requestId).update({
+      'status': 'approved',
+      'reviewedAt': FieldValue.serverTimestamp(),
+      'reviewedBy': currentUser?.uid,
+    });
+
+    // Create the user document (they'll need to create auth account by signing in)
+    // We store the approved email so when they register, we can auto-approve
+    await _firestore.collection('approved_owners').doc(data['email']).set({
+      'email': data['email'],
+      'fullName': data['fullName'],
+      'approvedAt': FieldValue.serverTimestamp(),
+      'approvedBy': currentUser?.uid,
+    });
+
+    debugPrint('Owner request approved for: ${data['email']}');
+  }
+
+  // Reject owner request
+  Future<void> rejectOwnerRequest(String requestId) async {
+    await _firestore.collection('owner_requests').doc(requestId).update({
+      'status': 'rejected',
+      'reviewedAt': FieldValue.serverTimestamp(),
+      'reviewedBy': currentUser?.uid,
+    });
+  }
+
+  // Check if email is pre-approved as owner
+  Future<bool> isApprovedOwner(String email) async {
+    final doc = await _firestore.collection('approved_owners').doc(email).get();
+    return doc.exists;
   }
 }
 

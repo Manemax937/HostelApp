@@ -136,5 +136,19 @@ service cloud.firestore {
       allow update: if isAdminOrOwner();
       allow delete: if isAdminOrOwner();
     }
+
+    // Owner Requests collection (for owner registration approval)
+    match /owner_requests/{requestId} {
+      // Anyone can create a request (not signed in yet)
+      allow create: if true;
+      // Only admins/owners can read and manage requests
+      allow read, update, delete: if isAdminOrOwner();
+    }
+
+    // Approved Owners collection (pre-approved emails)
+    match /approved_owners/{email} {
+      allow read: if true; // Anyone can check if email is approved
+      allow write: if isAdminOrOwner();
+    }
   }
 }

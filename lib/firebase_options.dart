@@ -52,7 +52,7 @@ class DefaultFirebaseOptions {
 
   static const FirebaseOptions android = FirebaseOptions(
     apiKey: 'AIzaSyCLhx2-acnLkqwaXwweNhaBm6CKQVfNEnc',
-    appId: '1:419070017648:android:c796a3c3d87e724cb374b5',
+    appId: '1:419070017648:android:1ae59052791924bcb374b5',
     messagingSenderId: '419070017648',
     projectId: 'comfortpg-3f724',
     storageBucket: 'comfortpg-3f724.firebasestorage.app',
@@ -64,6 +64,8 @@ class DefaultFirebaseOptions {
     messagingSenderId: '419070017648',
     projectId: 'comfortpg-3f724',
     storageBucket: 'comfortpg-3f724.firebasestorage.app',
+    androidClientId: '419070017648-qvosuhd62q7a7qtipmumtif6mpnqp9f2.apps.googleusercontent.com',
+    iosClientId: '419070017648-0fli3ku8bp4gdrh9kk9022m5cf50r3b4.apps.googleusercontent.com',
     iosBundleId: 'com.example.hostelapp',
   );
 
@@ -73,6 +75,8 @@ class DefaultFirebaseOptions {
     messagingSenderId: '419070017648',
     projectId: 'comfortpg-3f724',
     storageBucket: 'comfortpg-3f724.firebasestorage.app',
+    androidClientId: '419070017648-qvosuhd62q7a7qtipmumtif6mpnqp9f2.apps.googleusercontent.com',
+    iosClientId: '419070017648-0fli3ku8bp4gdrh9kk9022m5cf50r3b4.apps.googleusercontent.com',
     iosBundleId: 'com.example.hostelapp',
   );
 
@@ -85,4 +89,5 @@ class DefaultFirebaseOptions {
     storageBucket: 'comfortpg-3f724.firebasestorage.app',
     measurementId: 'G-QTMMTVR4F0',
   );
+
 }

@@ -84,37 +84,6 @@ class _UnifiedDashboardState extends State<UnifiedDashboard> {
           ],
         ),
         actions: [
-          // Settings icon for students
-          if (isStudent)
-            Stack(
-              children: [
-                Container(
-                  margin: const EdgeInsets.only(right: 4),
-                  padding: const EdgeInsets.all(8),
-                  decoration: BoxDecoration(
-                    color: Colors.grey[100],
-                    shape: BoxShape.circle,
-                  ),
-                  child: Icon(
-                    Icons.settings_outlined,
-                    color: Colors.grey[700],
-                    size: 20,
-                  ),
-                ),
-                Positioned(
-                  right: 6,
-                  top: 6,
-                  child: Container(
-                    width: 8,
-                    height: 8,
-                    decoration: const BoxDecoration(
-                      color: Colors.red,
-                      shape: BoxShape.circle,
-                    ),
-                  ),
-                ),
-              ],
-            ),
           // Role Badge
           Container(
             padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),

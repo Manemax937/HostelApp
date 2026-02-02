@@ -34,6 +34,30 @@ class _BannerCarouselState extends State<BannerCarousel> {
   }
 
   @override
+  void didUpdateWidget(covariant BannerCarousel oldWidget) {
+    super.didUpdateWidget(oldWidget);
+
+    // If banners were empty (or single) and now we have multiple, start auto-slide.
+    if ((oldWidget.banners.length <= 1) && (widget.banners.length > 1)) {
+      _startAutoSlide();
+    }
+
+    // If we had multiple banners before but now have <=1, cancel timer.
+    if ((oldWidget.banners.length > 1) && (widget.banners.length <= 1)) {
+      _autoSlideTimer?.cancel();
+      _autoSlideTimer = null;
+    }
+
+    // If the current page index is out of range for new banners, reset it.
+    if (_currentPage >= widget.banners.length) {
+      _currentPage = 0;
+      if (_pageController.hasClients) {
+        _pageController.jumpToPage(0);
+      }
+    }
+  }
+
+  @override
   void dispose() {
     _autoSlideTimer?.cancel();
     _pageController.dispose();
@@ -41,6 +65,9 @@ class _BannerCarouselState extends State<BannerCarousel> {
   }
 
   void _startAutoSlide() {
+    // Ensure we don't create multiple timers
+    _autoSlideTimer?.cancel();
+
     if (widget.banners.length <= 1) return;
 
     _autoSlideTimer = Timer.periodic(widget.autoSlideDuration, (timer) {
