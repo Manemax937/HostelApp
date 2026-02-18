@@ -269,6 +269,9 @@ class _BannerManagementScreenState extends State<BannerManagementScreen> {
   }
 
   Future<void> _addNewBanner(BuildContext context) async {
+    // Get BannerService reference before any async operations
+    final bannerService = Provider.of<BannerService>(context, listen: false);
+    
     final XFile? image = await _picker.pickImage(
       source: ImageSource.gallery,
       maxWidth: 1920,
@@ -277,6 +280,7 @@ class _BannerManagementScreenState extends State<BannerManagementScreen> {
     );
 
     if (image == null) return;
+    if (!mounted) return;
 
     // Show dialog to add title and description
     final result = await showDialog<Map<String, String?>>(
@@ -285,11 +289,11 @@ class _BannerManagementScreenState extends State<BannerManagementScreen> {
     );
 
     if (result == null) return;
+    if (!mounted) return;
 
     setState(() => _isUploading = true);
 
     try {
-      final bannerService = Provider.of<BannerService>(context, listen: false);
       await bannerService.addBanner(
         imageFile: File(image.path),
         title: result['title'],
@@ -327,7 +331,7 @@ class _BannerManagementScreenState extends State<BannerManagementScreen> {
 
     showDialog(
       context: context,
-      builder: (context) => AlertDialog(
+      builder: (dialogContext) => AlertDialog(
         shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
         title: const Text('Edit Banner'),
         content: Column(
@@ -357,7 +361,7 @@ class _BannerManagementScreenState extends State<BannerManagementScreen> {
         ),
         actions: [
           TextButton(
-            onPressed: () => Navigator.pop(context),
+            onPressed: () => Navigator.pop(dialogContext),
             child: const Text('Cancel'),
           ),
           ElevatedButton(
@@ -371,13 +375,16 @@ class _BannerManagementScreenState extends State<BannerManagementScreen> {
                     ? null
                     : descController.text,
               );
-              Navigator.pop(context);
-              ScaffoldMessenger.of(context).showSnackBar(
-                const SnackBar(
-                  content: Text('Banner updated!'),
-                  backgroundColor: Colors.green,
-                ),
-              );
+              Navigator.pop(dialogContext);
+              
+              if (mounted) {
+                ScaffoldMessenger.of(context).showSnackBar(
+                  const SnackBar(
+                    content: Text('Banner updated!'),
+                    backgroundColor: Colors.green,
+                  ),
+                );
+              }
             },
             child: const Text('Save'),
           ),
@@ -393,7 +400,7 @@ class _BannerManagementScreenState extends State<BannerManagementScreen> {
   ) {
     showDialog(
       context: context,
-      builder: (context) => AlertDialog(
+      builder: (dialogContext) => AlertDialog(
         shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
         title: const Text('Delete Banner?'),
         content: const Text(
@@ -401,12 +408,12 @@ class _BannerManagementScreenState extends State<BannerManagementScreen> {
         ),
         actions: [
           TextButton(
-            onPressed: () => Navigator.pop(context),
+            onPressed: () => Navigator.pop(dialogContext),
             child: const Text('Cancel'),
           ),
           ElevatedButton(
             onPressed: () async {
-              Navigator.pop(context);
+              Navigator.pop(dialogContext);
               try {
                 await bannerService.deleteBanner(banner.id);
                 if (mounted) {
@@ -445,6 +452,13 @@ class _AddBannerDialog extends StatefulWidget {
 class _AddBannerDialogState extends State<_AddBannerDialog> {
   final _titleController = TextEditingController();
   final _descController = TextEditingController();
+
+  @override
+  void dispose() {
+    _titleController.dispose();
+    _descController.dispose();
+    super.dispose();
+  }
 
   @override
   Widget build(BuildContext context) {

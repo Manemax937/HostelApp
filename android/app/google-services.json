@@ -14,11 +14,11 @@
       },
       "oauth_client": [
         {
-          "client_id": "419070017648-r78jt05aq0m1kn90805iqdo7r8qu40ov.apps.googleusercontent.com",
+          "client_id": "419070017648-gddo0mqlvg922gvkmt7dbujd3e5375of.apps.googleusercontent.com",
           "client_type": 1,
           "android_info": {
             "package_name": "com.comfortpg.hostelapp",
-            "certificate_hash": "6a08164d69e55b3fc9b498cd3ef9fba01ae5e85f"
+            "certificate_hash": "6b520c0d7962fa7c09cb8c206308184e8be15d83"
           }
         },
         {

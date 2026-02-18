@@ -34,7 +34,7 @@ android {
         applicationId = "com.comfortpg.hostelapp"
         minSdk = flutter.minSdkVersion
         targetSdk = 35
-        versionCode = 3
+        versionCode = 7
         versionName = "1.0.0"
     }
 
